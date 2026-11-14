@@ -1,0 +1,21 @@
+# Documentazione generata dalla collezione personale (dati privati)
+collection_docs/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+
+# Segreti / config locale
+.env
+config.local.*
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
