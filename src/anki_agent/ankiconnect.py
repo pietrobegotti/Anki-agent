@@ -1,4 +1,4 @@
-"""Client minimale per AnkiConnect (solo libreria standard)."""
+"""Minimal AnkiConnect client (standard library only)."""
 from __future__ import annotations
 
 import json
@@ -31,8 +31,8 @@ class AnkiConnect:
                 data = json.load(resp)
         except (urllib.error.URLError, TimeoutError) as e:
             raise AnkiConnectError(
-                f"AnkiConnect non raggiungibile su {self.url}: {e}. "
-                "Anki Desktop è aperto e il plugin installato?"
+                f"Could not reach AnkiConnect at {self.url}: {e}. "
+                "Is Anki Desktop running with the add-on installed?"
             ) from e
         if data.get("error"):
             raise AnkiConnectError(f"{action}: {data['error']}")

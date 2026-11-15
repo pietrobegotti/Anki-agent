@@ -1,344 +1,342 @@
-# Anki Agent — Documento dei requisiti
+# Anki Agent — Requirements Document
 
-**Versione:** 0.6  
-**Stato:** raccolta e definizione dei requisiti  
-**Ultimo aggiornamento:** 14 novembre 2026
+**Version:** 0.6
+**Status:** requirements gathering and definition
+**Last updated:** 14 November 2026
 
 ---
 
-## 1. Visione del progetto
+## 1. Project vision
 
-Realizzare un agente AI che possa gestire direttamente la collezione Anki dell'utente attraverso ChatGPT.
+Build an AI agent that can manage the user's Anki collection directly through ChatGPT.
 
-L'esperienza desiderata è quella di parlare con un assistente che abbia accesso alla propria collezione Anki, senza dover gestire manualmente sincronizzazioni, dispositivi o connessioni tecniche.
+The intended experience is a conversation with an assistant that can access the user's Anki collection without requiring manual synchronization, device management, or technical setup.
 
-Esempio:
+Example:
 
-> «Aggiungimi una nota per questa parola, con lettura, significato ed esempi».
+> “Add a note for this word, including its reading, meaning, and examples.”
 
-L'agente analizza la richiesta, prepara una proposta, mostra un'anteprima e, dopo l'approvazione dell'utente, esegue l'operazione su Anki.
+The agent analyzes the request, prepares a proposal, shows a preview, and performs the operation in Anki only after the user approves it.
 
-Il sistema dovrà essere:
-- utilizzabile da ChatGPT su PC e smartphone;
-- indipendente dal dispositivo utilizzato;
-- personalizzabile per ogni utente;
-- riutilizzabile e potenzialmente distribuibile pubblicamente;
-- modulare, così da poter integrare in futuro funzionalità di studio e apprendimento.
+The system should be:
+- usable in ChatGPT on desktop and mobile;
+- independent of the device being used;
+- customizable for each user;
+- reusable and potentially available to the public;
+- modular, so study and learning features can be added later.
 
-## 2. Ambito della prima versione
+## 2. Scope of the first version
 
-La prima versione si concentra esclusivamente sulla **gestione della collezione Anki**.
+The first version focuses exclusively on **managing the Anki collection**.
 
-Sono inclusi:
-- creazione, modifica ed eliminazione di Note;
-- gestione dei campi delle Note;
-- comprensione dei diversi tipi di nota e dei relativi template;
-- gestione dei Deck;
-- gestione dei tag;
-- individuazione dei duplicati;
-- modifica della formattazione;
-- anteprima delle operazioni;
-- documentazione interna della collezione.
+Included:
+- creating, editing, and deleting notes;
+- managing note fields;
+- understanding different note types and their templates;
+- managing decks;
+- managing tags;
+- finding duplicates;
+- editing formatting;
+- previewing operations;
+- maintaining internal collection documentation.
 
-Sono rimandati a una fase successiva:
-- gestione di immagini, audio e video;
-- funzionalità di tutoraggio;
-- pianificazione dello studio;
-- analisi delle prestazioni e dei progressi;
-- generazione di percorsi di apprendimento.
+Deferred to a later phase:
+- managing images, audio, and video;
+- tutoring features;
+- study planning;
+- performance and progress analysis;
+- generating learning paths.
 
-L'architettura dovrà comunque consentire di aggiungere queste funzionalità senza riscrivere il nucleo del sistema.
+The architecture should still allow these features to be added without rewriting the system's core.
 
-## 3. Modello di ragionamento: Note e Card
+## 3. Reasoning model: notes and cards
 
-L'agente dovrà ragionare principalmente in termini di **Note**.
+The agent should reason primarily in terms of **notes**.
 
-Una Nota contiene informazioni organizzate in campi. Il tipo di nota determina quali campi sono disponibili e come vengono utilizzati dai template per generare una o più Card.
+A note contains information organized into fields. Its note type determines which fields are available and how templates use them to generate one or more cards.
 
-L'agente dovrà comprendere:
-- la differenza tra Note e Card;
-- la struttura dei campi di ogni tipo di nota;
-- il significato e la funzione di ciascun campo;
-- il rapporto tra campi e template;
-- quante Card vengono generate da una Nota;
-- quali Card vengono influenzate dalla modifica di un campo.
+The agent should understand:
+- the difference between notes and cards;
+- the field structure of each note type;
+- the meaning and purpose of each field;
+- the relationship between fields and templates;
+- how many cards a note generates;
+- which cards are affected when a field changes.
 
-Esempio: una Nota di tipo Basic and reversed può generare due Card. Una modifica alla Nota potrebbe quindi influenzarle entrambe.
+For example, a Basic and reversed note may generate two cards. Editing the note could therefore affect both cards.
 
-L'agente dovrà sempre considerare tutte le conseguenze di una modifica alla Nota, non soltanto la Card che l'utente sta visualizzando.
+The agent must consider every consequence of editing a note, not only the card currently shown to the user.
 
-## 4. Comprensione dei tipi di nota
+## 4. Understanding note types
 
-L'agente dovrà essere in grado di analizzare e utilizzare diversi tipi di nota:
+The agent must be able to analyze and use different note types:
 
 - Basic
 - Basic (and reversed)
 - Cloze
-- Tipi di nota personalizzati
+- Custom note types
 
-Dovrà poter esaminare:
-- nomi e struttura dei campi;
-- HTML dei template;
+It should be able to inspect:
+- field names and structure;
+- template HTML;
 - CSS;
-- condizioni di generazione delle Card;
-- eventuali relazioni tra campi e template.
+- card generation conditions;
+- relationships between fields and templates.
 
-Dovrà comprendere anche le Cloze con più cancellazioni, ad esempio `{{c1::...}}` e `{{c2::...}}`, sapendo che possono generare Card differenti.
+It must also understand Cloze notes with multiple deletions, such as `{{c1::...}}` and `{{c2::...}}`, which can generate different cards.
 
-La modifica dei template non dovrà essere una pratica ordinaria. L'agente dovrà preservare il comportamento originale e potrà proporre modifiche soltanto in casi eccezionali, spiegando il problema e discutendo le alternative con l'utente.
+Changing templates should not be routine. The agent must preserve their original behavior and may propose changes only in exceptional cases, explaining the problem and discussing alternatives with the user.
 
-## 5. Sistema di documentazione Markdown
+## 5. Markdown documentation system
 
-L'agente dovrà disporre di una documentazione persistente, organizzata in file Markdown, che descriva la collezione e le sue convenzioni.
+The agent must have persistent Markdown documentation describing the collection and its conventions.
 
-Questa documentazione sarà una sorta di **base di conoscenza operativa dell'agente**.
+This documentation serves as the agent's **operational knowledge base**.
 
-Dovrà essere consultata prima delle operazioni pertinenti e aggiornata quando l'agente acquisisce nuove informazioni.
+It should be consulted before relevant operations and updated when the agent learns new information.
 
-### 5.1 Documentazione dei tipi di nota
+### 5.1 Note type documentation
 
-Dovrà esistere un documento Markdown per ogni **tipo di nota**, non per ogni singola Nota presente nella collezione.
+There must be one Markdown document for each **note type**, not for each individual note in the collection.
 
-Per ogni tipo di nota utilizzato dovrà essere documentato:
-- nome e funzione del tipo;
-- campi disponibili;
-- significato di ogni campo;
-- formato e convenzioni da rispettare;
-- ruolo di ciascun campo nei template;
-- Card generate;
-- conseguenze delle modifiche ai singoli campi;
-- eventuali particolarità o eccezioni.
+For each note type in use, document:
+- its name and purpose;
+- its available fields;
+- the meaning of each field;
+- required formats and conventions;
+- the role of each field in the templates;
+- the cards it generates;
+- the consequences of changing each field;
+- any special cases or exceptions.
 
-### 5.2 Documentazione dei Deck
+### 5.2 Deck documentation
 
-Per ogni Deck dovrà essere documentato:
-- nome e struttura;
-- tipi di nota utilizzati;
-- convenzioni specifiche;
-- eventuali regole di compilazione;
-- preferenze dell'utente;
-- relazioni con altri Deck.
+For each deck, document:
+- its name and structure;
+- the note types it uses;
+- deck-specific conventions;
+- any entry rules;
+- user preferences;
+- relationships with other decks.
 
-### 5.3 Preferenze e comportamento dell'agente
+### 5.3 Agent preferences and behavior
 
-Oltre alla documentazione tecnica della collezione, dovranno esistere documenti dedicati al comportamento dell'agente e alle preferenze dell'utente.
+In addition to the collection's technical documentation, there should be documents describing the agent's behavior and the user's preferences.
 
-Questi documenti definiranno, per esempio:
-- livello di sintesi desiderato;
-- quantità di dettagli da mostrare;
-- lingua delle spiegazioni e dei contenuti;
-- formato delle risposte e delle anteprime;
-- stile di generazione del testo;
-- convenzioni da rispettare;
-- livello di autonomia;
-- quando chiedere chiarimenti.
+For example, these documents may define:
+- preferred level of concision;
+- how much detail to show;
+- the language for explanations and content;
+- response and preview formats;
+- text generation style;
+- conventions to follow;
+- level of autonomy;
+- when to ask clarifying questions.
 
-Esempio: l'utente può preferire risposte molto sintetiche, che mostrino soltanto le informazioni essenziali, senza spiegazioni aggiuntive non richieste.
+For example, the user may prefer concise responses that show only essential information, without unrequested explanations.
 
-Le preferenze potranno evolversi nel tempo anche in base alle correzioni e alle indicazioni dell'utente.
+Preferences may evolve over time based on the user's corrections and instructions.
 
-### 5.4 Storico
+### 5.4 History
 
-L'agente dovrà mantenere uno storico delle operazioni e delle modifiche rilevanti alla struttura della collezione.
+The agent must maintain a history of operations and significant changes to the collection structure.
 
-### 5.5 Autonomia nella documentazione
+### 5.5 Documentation autonomy
 
-I file Markdown sono principalmente strumenti interni dell'agente.
+Markdown files are primarily internal tools for the agent.
 
-L'agente può crearli e aggiornarli autonomamente, senza chiedere conferma per ogni modifica. Dovrà però chiedere chiarimenti quando non comprende una struttura o una convenzione.
+The agent may create and update them autonomously, without asking for approval for every change. It should ask for clarification when it does not understand a structure or convention.
 
-La documentazione dovrà essere conservata in uno spazio cloud sempre accessibile all'agente. L'ipotesi preferita è il Google Drive personale dell'utente.
+The documentation should be stored in cloud storage that is always accessible to the agent. The preferred option is the user's personal Google Drive.
 
-## 6. Gestione dei Deck
+## 6. Deck management
 
-L'utente normalmente indica il Deck di destinazione.
+The user will usually specify the destination deck.
 
-Se non lo specifica, l'agente dovrà:
-1. consultare la documentazione;
-2. individuare il Deck più appropriato;
-3. proporre la scelta;
-4. attendere conferma prima di procedere.
+If they do not, the agent should:
+1. consult the documentation;
+2. identify the most appropriate deck;
+3. propose that choice;
+4. wait for confirmation before proceeding.
 
-L'agente dovrà poter:
-- creare Deck;
-- rinominare Deck;
-- spostare Note tra Deck;
-- unire Deck;
-- eliminare Deck.
+The agent should be able to:
+- create decks;
+- rename decks;
+- move notes between decks;
+- merge decks;
+- delete decks.
 
-La creazione di nuovi Deck richiede conferma.
+Creating a new deck requires confirmation.
 
-Le operazioni di unione dovranno tenere conto del fatto che Anki non dispone necessariamente di un'operazione nativa di fusione: potrebbe essere necessario spostare le Card e successivamente eliminare il Deck sorgente.
+When merging decks, account for the fact that Anki may not provide a native merge operation. It may be necessary to move cards and then delete the source deck.
 
-L'agente dovrà documentare le modifiche alla struttura dei Deck.
+The agent must document changes to the deck structure.
 
-## 7. Gestione dei duplicati
+## 7. Duplicate management
 
-Prima di creare una nuova Nota, l'agente dovrà verificare la presenza di possibili duplicati.
+Before creating a note, the agent must check for possible duplicates.
 
-La verifica dovrà considerare:
-- corrispondenza esatta dei contenuti;
-- somiglianza dei campi;
-- equivalenza semantica.
+The check should consider:
+- exact content matches;
+- similar field values;
+- semantic equivalence.
 
-Se individua un duplicato o un possibile duplicato, dovrà chiedere all'utente come procedere.
+If it finds a duplicate or a possible duplicate, it must ask the user how to proceed.
 
-Le alternative potranno includere:
-- aggiornare la Nota esistente;
-- mantenere entrambe;
-- rinunciare alla creazione.
+Options may include:
+- updating the existing note;
+- keeping both notes;
+- cancelling the creation.
 
-L'agente non dovrà prendere autonomamente decisioni ambigue.
+The agent must not make ambiguous decisions on its own.
 
-## 8. Formattazione e contenuti multimediali
+## 8. Formatting and media
 
-Nella prima versione sarà possibile modificare la formattazione delle Note.
+The first version may edit note formatting.
 
-Quando modifica soltanto il testo, l'agente dovrà preservare per quanto possibile la formattazione esistente.
+When editing text only, the agent should preserve existing formatting as much as possible.
 
-Il supporto a immagini, audio e video è desiderato, ma viene rimandato a una fase successiva.
+Support for images, audio, and video is desired but deferred to a later phase.
 
-Le modifiche ai template dovranno essere eccezionali e sottoposte a discussione e approvazione.
+Template changes should be exceptional and discussed with the user for approval.
 
-## 9. Anteprima e approvazione delle operazioni
+## 9. Operation previews and approval
 
-**Nessuna modifica alla collezione dovrà essere eseguita senza approvazione esplicita dell'utente.**
+**No change to the collection may be made without the user's explicit approval.**
 
-Questo vale per tutte le operazioni che modificano la collezione, non soltanto per la creazione delle Note.
+This applies to every operation that changes the collection, not only note creation.
 
-### 9.1 Anteprima delle Note
+### 9.1 Note preview
 
-Per una nuova Nota l'agente dovrà mostrare:
-- i valori di tutti i campi;
-- tutte le Card che verranno generate;
-- il fronte e il retro di ciascuna Card.
+For a new note, the agent must show:
+- the value of every field;
+- every card that will be generated;
+- the front and back of each card.
 
-### 9.2 Modifica di una Nota
+### 9.2 Editing a note
 
-Quando una Nota viene modificata, l'anteprima dovrà mostrare:
-- tutte le Card interessate;
-- il fronte e il retro prima della modifica;
-- il fronte e il retro dopo la modifica;
-- le differenze introdotte.
+When editing a note, the preview must show:
+- every affected card;
+- the front and back before the edit;
+- the front and back after the edit;
+- the changes made.
 
-Se una Nota genera più Card, dovranno essere mostrate tutte quelle interessate.
+If a note generates multiple cards, show every affected card.
 
-### 9.3 Modifiche multiple
+### 9.3 Multiple edits
 
-Se una richiesta comporta più operazioni, l'agente dovrà presentare un'unica anteprima aggregata.
+If a request involves multiple operations, the agent must present one combined preview.
 
-L'utente dovrà poter approvare o rifiutare le singole operazioni, senza essere obbligato ad accettarle tutte.
+The user must be able to approve or reject individual operations without having to accept them all.
 
-### 9.4 Modifica dell'anteprima
+### 9.4 Editing the preview
 
-L'utente dovrà poter correggere i contenuti proposti prima di approvarli.
+The user must be able to edit proposed content before approving it.
 
-L'anteprima dovrà avere una rappresentazione visiva simile a quella delle Card Anki. Non è necessario riprodurre perfettamente il rendering originale, ma deve essere sufficientemente fedele da consentire di verificare il risultato.
+The preview should look similar to Anki cards. It does not need to reproduce the original rendering perfectly, but it must be faithful enough for the user to check the result.
 
-### 9.5 Eliminazioni
+### 9.5 Deletions
 
-Per le eliminazioni dovrà essere mostrato esattamente l'elemento che verrà eliminato.
+For a deletion, show the exact item that will be deleted.
 
-Le eliminazioni richiederanno una conferma aggiuntiva rispetto alle normali operazioni.
+Deletions require an additional confirmation beyond the usual operation approval.
 
-## 10. Sicurezza, storico e recupero
+## 10. Safety, history, and recovery
 
-Il sistema dovrà mantenere un registro persistente delle operazioni.
+The system must keep a persistent operation log.
 
-Il registro dovrà essere:
-- consultabile dall'agente;
-- accessibile anche all'utente;
-- sufficientemente dettagliato da ricostruire le operazioni eseguite.
+The log must be:
+- available to the agent;
+- accessible to the user;
+- detailed enough to reconstruct the operations performed.
 
-L'agente dovrà comunicare normalmente l'esito delle operazioni. L'utente potrà disattivare queste notifiche.
+The agent should normally report operation results. The user may disable these notifications.
 
-Il sistema dovrebbe prevedere funzionalità di annullamento o recupero quando tecnicamente possibile.
+The system should support undo or recovery where technically possible.
 
-Non è invece un requisito obbligatorio che le Note eliminate siano sempre recuperabili tramite cestino o backup.
+It is not a mandatory requirement that deleted notes can always be recovered from a trash folder or backup.
 
-## 11. Sincronizzazione
+## 11. Synchronization
 
-L'utente desidera che l'agente possa richiedere una sincronizzazione di Anki quando necessario.
+The user wants the agent to be able to request an Anki sync when needed.
 
-La sincronizzazione dovrà essere gestita attraverso i meccanismi supportati da Anki, senza introdurre procedure manuali inutilmente complesse.
+Synchronization must use mechanisms supported by Anki and avoid unnecessarily complex manual steps.
 
-L'agente dovrà comunicare se una sincronizzazione è necessaria o se un'operazione non è ancora disponibile sugli altri dispositivi.
+The agent must tell the user when synchronization is needed or when an operation is not yet available on other devices.
 
-## 12. Infrastruttura e accesso remoto
+## 12. Remote infrastructure and access
 
-L'obiettivo è utilizzare l'agente da qualsiasi dispositivo e rete, compreso lo smartphone, senza dover gestire manualmente il PC.
+The goal is to use the agent from any device and network, including a smartphone, without manually managing the PC.
 
-L'utente dispone di:
+The user has:
 - Anki Desktop;
 - AnkiConnect;
 - AnkiDroid;
-- sincronizzazione tramite AnkiWeb.
+- AnkiWeb synchronization.
 
-AnkiConnect fornisce un'interfaccia locale alla collezione. Per renderla accessibile all'agente da remoto sarà necessario progettare un'infrastruttura di collegamento sicura.
+AnkiConnect provides a local interface to the collection. Secure infrastructure will be needed to make it accessible to the agent remotely.
 
-L'architettura dovrà separare chiaramente:
-- agente AI;
-- regole e istruzioni operative;
-- connettore o interfaccia MCP;
-- eventuale bridge remoto;
+The architecture must clearly separate:
+- the AI agent;
+- operational rules and instructions;
+- the connector or MCP interface;
+- any remote bridge;
 - AnkiConnect;
-- sincronizzazione AnkiWeb;
-- documentazione Markdown.
+- AnkiWeb synchronization;
+- Markdown documentation.
 
-La soluzione tecnica dovrà garantire autenticazione, isolamento dei dati e protezione dell'accesso alla collezione.
+The solution must provide authentication, data isolation, and protection for collection access.
 
-## 13. Comportamento dell'agente
+## 13. Agent behavior
 
-L'agente dovrà:
-- interpretare le richieste in linguaggio naturale;
-- ragionare sulle Note e sui loro campi;
-- consultare la documentazione prima delle operazioni;
-- chiedere chiarimenti quando una richiesta è ambigua;
-- supportare richieste che comportano più operazioni;
-- preparare anteprime;
-- attendere l'approvazione;
-- comunicare l'esito;
-- aggiornare la propria documentazione.
+The agent must:
+- interpret natural language requests;
+- reason about notes and their fields;
+- consult documentation before operations;
+- ask for clarification when a request is ambiguous;
+- support requests involving multiple operations;
+- prepare previews;
+- wait for approval;
+- report results;
+- update its documentation.
 
-L'agente non dovrà dare per scontato il significato di un campo o una convenzione che non conosce.
+The agent must not assume the meaning of a field or convention it does not know.
 
-## 14. Configurazione e distribuzione
+## 14. Configuration and distribution
 
-Il progetto dovrà essere progettato per essere utilizzabile anche da altri utenti.
+The project must be designed for use by other people.
 
-Ogni utente dovrà poter collegare la propria collezione Anki e il proprio spazio di documentazione.
+Each user must be able to connect their own Anki collection and documentation storage.
 
-Configurazioni, credenziali, documentazione, preferenze e storico dovranno essere completamente separati tra utenti.
+Configuration, credentials, documentation, preferences, and history must be fully separated between users.
 
-L'obiettivo è realizzare una soluzione riutilizzabile, potenzialmente distribuibile pubblicamente, senza che gli utenti debbano condividere dati o configurazioni.
+The goal is a reusable solution that could be made publicly available without users sharing data or configuration.
 
-## 15. Architettura modulare futura
+## 15. Future modular architecture
 
-Il sistema dovrà avere un nucleo indipendente dalle funzionalità specifiche.
+The system must have a core that is independent of specific features.
 
-In futuro si potranno aggiungere moduli come:
-- assistente allo studio;
-- analisi dei progressi;
-- suggerimenti sui contenuti da studiare;
-- generazione di esercizi;
-- tutoraggio linguistico;
-- analisi della qualità delle Note.
+Future modules may include:
+- study assistance;
+- progress analysis;
+- suggestions about what to study;
+- exercise generation;
+- language tutoring;
+- note quality analysis.
 
-Questi moduli dovranno poter riutilizzare la conoscenza della collezione senza compromettere la gestione operativa di Anki.
+These modules must be able to reuse collection knowledge without compromising Anki management.
 
----
+## 16. Open questions
 
-## 16. Questioni ancora da definire
+The following decisions remain open and must be addressed during design:
 
-Le seguenti decisioni sono ancora aperte e dovranno essere affrontate durante la progettazione.
-
-1. Come organizzare concretamente i file Markdown su Google Drive e come autorizzare l'agente ad accedervi.
-2. Come rilevare modifiche apportate da AnkiDroid o da altri dispositivi mentre l'agente sta preparando un'operazione.
-3. Come gestire i conflitti tra modifiche concorrenti.
-4. Come implementare un sistema affidabile di anteprima visiva delle Card.
-5. Come gestire le operazioni di annullamento e recupero.
-6. Quale infrastruttura remota utilizzare per collegare ChatGPT ad AnkiConnect.
-7. Come gestire l'autenticazione e l'isolamento dei dati per più utenti.
-8. Come implementare in modo affidabile la sincronizzazione AnkiWeb.
-9. Come distinguere e documentare le convenzioni specifiche di un Deck da quelle generali di un tipo di nota.
-10. Quali operazioni dovranno essere supportate dal primo rilascio e quali potranno essere aggiunte successivamente.
+1. How to organize Markdown files in Google Drive and authorize the agent to access them.
+2. How to detect changes made in AnkiDroid or other devices while the agent prepares an operation.
+3. How to handle conflicting concurrent edits.
+4. How to implement reliable visual card previews.
+5. How to implement undo and recovery.
+6. Which remote infrastructure to use to connect ChatGPT to AnkiConnect.
+7. How to handle authentication and data isolation for multiple users.
+8. How to implement reliable AnkiWeb synchronization.
+9. How to distinguish and document deck-specific conventions from general note type conventions.
+10. Which operations should be supported in the first release and which can be added later.

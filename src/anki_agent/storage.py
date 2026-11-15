@@ -1,6 +1,6 @@
-"""Storage della documentazione. Interfaccia astratta + implementazione locale.
+"""Documentation storage: abstract interface and local implementation.
 
-Il passo successivo sarà un GoogleDriveStorage con la stessa interfaccia.
+The next step will be a GoogleDriveStorage implementation with the same interface.
 """
 from __future__ import annotations
 
@@ -31,9 +31,9 @@ class LocalStorage(Storage):
     def _resolve(self, path: str) -> Path:
         p = (self.root / path).resolve()
         if self.root != p and self.root not in p.parents:
-            raise ValueError(f"Percorso non valido: {path}")
+            raise ValueError(f"Invalid path: {path}")
         if p.suffix != ".md":
-            raise ValueError("Sono ammessi solo file .md")
+            raise ValueError("Only .md files are allowed")
         return p
 
     def read(self, path: str) -> str | None:
@@ -60,6 +60,6 @@ class LocalStorage(Storage):
 
 
 def log_line(storage: Storage, message: str) -> None:
-    """Aggiunge una riga al registro mensile in log/YYYY-MM.md."""
+    """Append a line to the monthly log at log/YYYY-MM.md."""
     now = datetime.now(timezone.utc)
     storage.append(f"log/{now:%Y-%m}.md", f"- {now:%Y-%m-%d %H:%M}Z — {message}\n")

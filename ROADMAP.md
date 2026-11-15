@@ -1,103 +1,103 @@
 # Roadmap — Anki Agent
 
-I test iniziano fin dalle prime iterazioni: test automatici locali per la logica e, quando serve Anki, prove d'integrazione con Anki Desktop e una collezione di test. L'iterazione 10 aggiungerà i test del collegamento remoto da ChatGPT.
+Testing starts in the early iterations: use local automated tests for application logic and, when Anki is needed, integration tests with Anki Desktop and a test collection. Iteration 10 adds tests for the remote connection from ChatGPT.
 
-## 01 - Collegamento e inventario *(completata)*
+## 01 - Connection and inventory *(completed)*
 
-**Obiettivo:** collegarsi ad Anki in sola lettura e generare una prima documentazione della collezione.
+**Goal:** connect to Anki in read-only mode and generate initial collection documentation.
 
-- Collegarsi tramite AnkiConnect.
-- Leggere versione, deck e tipi di nota.
-- Generare i file Markdown per deck e tipi di nota.
-- Verificare lo script con Anki Desktop aperto.
+- Connect through AnkiConnect.
+- Read the version, decks, and note types.
+- Generate Markdown files for decks and note types.
+- Verify the script with Anki Desktop running.
 
-## 02 - Struttura dei tipi di nota
+## 02 - Note type structure
 
-**Obiettivo:** documentare come sono fatte le note e quali card producono.
+**Goal:** document how notes are structured and which cards they generate.
 
-- Leggere campi, template e CSS da AnkiConnect.
-- Documentare il ruolo dei campi e i template fronte/retro.
-- Rilevare le card generate, incluse le varianti Cloze.
-- Aggiornare i documenti senza sovrascrivere le note manuali.
-- Aggiungere test automatici con risposte Anki simulate.
+- Read fields, templates, and CSS through AnkiConnect.
+- Document field roles and front/back templates.
+- Identify generated cards, including Cloze variants.
+- Update documentation while preserving manual notes.
+- Add automated tests with simulated Anki responses.
 
-## 03 - Convenzioni e conoscenza della collezione
+## 03 - Collection conventions and knowledge
 
-**Obiettivo:** affiancare ai dati tecnici le regole utili a scegliere e compilare le note.
+**Goal:** add the rules needed to choose and fill notes alongside the technical data.
 
-- Definire un formato per convenzioni di deck e campi.
-- Registrare preferenze e informazioni confermate dall'utente.
-- Separare dati rilevati automaticamente da contenuti manuali.
-- Verificare che la rigenerazione preservi le sezioni manuali.
+- Define a format for deck and field conventions.
+- Record preferences and information confirmed by the user.
+- Separate automatically detected data from manual content.
+- Verify that regeneration preserves manual sections.
 
-## 04 - Ricerca e lettura delle note
+## 04 - Search and read notes
 
-**Obiettivo:** trovare note esistenti e mostrarne i contenuti senza modificarle.
+**Goal:** find existing notes and show their contents without changing them.
 
-- Aggiungere ricerca per testo, deck, tipo di nota e tag.
-- Leggere tutti i campi delle note selezionate.
-- Restituire risultati chiari e limitati alla richiesta.
-- Testare query, risultati vuoti ed errori di connessione.
+- Add search by text, deck, note type, and tag.
+- Read all fields of selected notes.
+- Return clear results limited to the request.
+- Test queries, empty results, and connection errors.
 
-## 05 - Anteprima delle operazioni
+## 05 - Operation previews
 
-**Obiettivo:** mostrare in anticipo l'effetto di una creazione o modifica.
+**Goal:** show the effect of creating or editing a note before applying it.
 
-- Rappresentare note e card generate con i template disponibili.
-- Per le modifiche, confrontare stato attuale e proposto.
-- Evidenziare le card e i campi coinvolti.
-- Verificare anteprime con tipi di nota semplici e complessi.
+- Render notes and generated cards with the available templates.
+- For edits, compare the current and proposed states.
+- Highlight affected cards and fields.
+- Verify previews with simple and complex note types.
 
-## 06 - Creazione e modifica approvate
+## 06 - Approved creation and editing
 
-**Obiettivo:** applicare operazioni sulle note solo dopo l'approvazione esplicita.
+**Goal:** apply note operations only after explicit approval.
 
-- Implementare creazione e modifica tramite AnkiConnect.
-- Richiedere approvazione dopo aver mostrato l'anteprima.
-- Ricontrollare i dati subito prima della scrittura.
-- Testare annullamento, errori e conferma dell'esito.
+- Implement note creation and editing through AnkiConnect.
+- Request approval after showing the preview.
+- Recheck the data immediately before writing.
+- Test cancellation, errors, and operation results.
 
-## 07 - Duplicati e richieste multiple
+## 07 - Duplicates and multiple requests
 
-**Obiettivo:** gestire ambiguità e richieste che producono più modifiche.
+**Goal:** handle ambiguity and requests that result in multiple changes.
 
-- Cercare corrispondenze esatte e possibili duplicati.
-- Chiedere come procedere quando il risultato è ambiguo.
-- Presentare un'unica anteprima per operazioni multiple.
-- Consentire approvazione o rifiuto delle singole operazioni.
+- Find exact matches and possible duplicates.
+- Ask how to proceed when a result is ambiguous.
+- Present one combined preview for multiple operations.
+- Allow each operation to be approved or rejected individually.
 
-## 08 - Deck, tag ed eliminazioni
+## 08 - Decks, tags, and deletions
 
-**Obiettivo:** estendere le operazioni alla struttura della collezione.
+**Goal:** extend operations to the collection structure.
 
-- Aggiungere gestione dei tag e spostamento delle note tra deck.
-- Definire le operazioni supportate sui deck.
-- Mostrare l'elemento esatto prima di ogni eliminazione.
-- Richiedere una conferma aggiuntiva per le eliminazioni.
+- Add tag management and moving notes between decks.
+- Define supported deck operations.
+- Show the exact item before each deletion.
+- Require an additional confirmation for deletions.
 
-## 09 - Storico e recupero
+## 09 - History and recovery
 
-**Obiettivo:** rendere tracciabili le operazioni e gestire gli errori in modo recuperabile.
+**Goal:** track operations and make failures recoverable where possible.
 
-- Registrare richiesta, anteprima, approvazione, operazione ed esito.
-- Rendere lo storico consultabile dall'utente.
-- Valutare quali operazioni possono essere annullate o ripristinate.
-- Testare registrazioni incomplete e interruzioni durante le operazioni.
+- Record the request, preview, approval, operation, and result.
+- Make the history accessible to the user.
+- Assess which operations can be undone or restored.
+- Test incomplete records and interruptions during operations.
 
-## 10 - Collegamento remoto e ChatGPT
+## 10 - Remote connection and ChatGPT
 
-**Obiettivo:** usare l'agente da ChatGPT senza richiedere accesso locale al PC.
+**Goal:** use the agent from ChatGPT without requiring local access to the PC.
 
-- Scegliere l'architettura di bridge remoto e connettore.
-- Definire autenticazione, isolamento dei dati e gestione delle credenziali.
-- Collegare le funzioni dell'agente all'interfaccia remota.
-- Testare il flusso completo da ChatGPT ad Anki e ritorno.
+- Choose the remote bridge and connector architecture.
+- Define authentication, data isolation, and credential handling.
+- Connect the agent's features to the remote interface.
+- Test the full flow from ChatGPT to Anki and back.
 
-## 11 - Distribuzione e rifinitura
+## 11 - Distribution and polish
 
-**Obiettivo:** preparare il progetto per configurazioni e collezioni diverse.
+**Goal:** prepare the project for different configurations and collections.
 
-- Rendere configurabili connessione e spazio di documentazione.
-- Separare i dati e le impostazioni per ogni utente.
-- Completare istruzioni di installazione, uso e recupero dagli errori.
-- Eseguire una verifica end-to-end su un'installazione pulita.
+- Make the connection and documentation storage configurable.
+- Isolate each user's data and settings.
+- Complete installation, usage, and troubleshooting instructions.
+- Run an end-to-end check on a clean installation.

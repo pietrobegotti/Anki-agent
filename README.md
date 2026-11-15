@@ -1,53 +1,50 @@
 # Anki Agent
 
-Agente AI per gestire la propria collezione Anki (note, deck, tag, duplicati)
-tramite [AnkiConnect](https://ankiweb.net/shared/info/2055492159).
+An AI agent for managing an Anki collection (notes, decks, tags, and duplicates)
+through [AnkiConnect](https://ankiweb.net/shared/info/2055492159).
 
-**Stato:** step 1 — sola lettura + generazione della documentazione Markdown
-della collezione (tipi di nota e deck). Nessuna scrittura su Anki.
+**Status:** Step 1 — read-only access and Markdown documentation generation
+for the collection (note types and decks). No changes are made to Anki.
 
-## Requisiti
+## Requirements
 
 - Python 3.9+
-- Anki Desktop aperto, con il plugin AnkiConnect (codice `2055492159`)
+- Anki Desktop running with the AnkiConnect add-on (code `2055492159`)
 
-## Installazione
+## Installation
 
-```bash
-git clone <URL-del-repo>
-cd anki-agent
-python -m venv .venv
-source .venv/bin/activate      # Windows: .venv\Scripts\activate
-pip install -e .
+```powershell
+uv sync
 ```
 
-## Primo test
+## First run
 
-```bash
-python test_run.py
+```powershell
+uv run python test_run.py
 ```
 
-Stampa versione di AnkiConnect, deck e tipi di nota, poi genera la
-documentazione in `collection_docs/` (ignorata da git: contiene dati personali).
+The script prints the AnkiConnect version, decks, and note types, then generates
+documentation in `collection_docs/`. This folder is ignored by Git because it
+contains data from your personal collection.
 
-Le sezioni `AUTO` dei file vengono rigenerate a ogni esecuzione; la sezione
-"Note manuali" non viene mai sovrascritta.
+The `AUTO` sections in generated files are refreshed on every run. The
+"Manual notes" section is preserved.
 
-## Struttura
+## Project structure
 
 ```
 src/anki_agent/
-  ankiconnect.py   client minimale per AnkiConnect (solo libreria standard)
-  storage.py       interfaccia Storage + LocalStorage
-  docs_gen.py      generazione documentazione tipi di nota e deck
-docs/              requisiti e documentazione di progetto
-tests/
-test_run.py        script di prova
+  ankiconnect.py   minimal AnkiConnect client (standard library only)
+  storage.py       Storage interface and LocalStorage implementation
+  docs_gen.py      note type and deck documentation generation
+test_run.py        smoke test
+ROADMAP.md         project roadmap
+manifest.md        project requirements
 ```
 
 ## Roadmap
 
-- [ ] Scritture su Anki (aggiungi/modifica/elimina note)
-- [ ] Anteprima e approvazione prima di ogni operazione
-- [ ] `GoogleDriveStorage` con la stessa interfaccia di `Storage`
-- [ ] Integrazione con ChatGPT
+- [ ] Write to Anki (add, edit, and delete notes)
+- [ ] Preview and approval before every operation
+- [ ] `GoogleDriveStorage` with the same interface as `Storage`
+- [ ] ChatGPT integration
