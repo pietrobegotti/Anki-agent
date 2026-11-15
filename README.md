@@ -3,9 +3,9 @@
 An AI agent for managing an Anki collection (notes, decks, tags, and duplicates)
 through [AnkiConnect](https://ankiweb.net/shared/info/2055492159).
 
-**Status:** Step 9 — mutation proposals and outcomes can be recorded in a local
-append-only history. Incomplete and uncertain operations can be inspected;
-uncertain writes are never retried automatically.
+**Status:** Step 10 — a tenant-isolated, bearer-authenticated JSON API exposes
+collection search and preview-gated mutations for a remote ChatGPT connector.
+The API requires HTTPS and keeps each user's Anki services separate.
 
 ## Requirements
 
@@ -70,6 +70,23 @@ contain note content. `history.recovery_status()` reports proposals interrupted
 before a known result and operations whose write outcome is uncertain. It does
 not replay or undo operations; inspect Anki before resolving an uncertain write.
 
+## Remote ChatGPT connector
+
+`RemoteGateway` is a WSGI JSON API for collection inventory and note search,
+preview proposals, and separately approved writes. Register one
+`RemoteUserContext` per user with a unique random bearer token of at least 32
+characters. Each context must use its own `AnkiConnect`, `NoteReader`,
+`NoteMutationService`, and storage root. The gateway rejects duplicate user IDs,
+shared mutation services, and non-HTTPS WSGI requests.
+
+Use [openapi.yaml](openapi.yaml) as the starting contract for a ChatGPT Action.
+Replace its server URL with the deployed HTTPS endpoint, configure bearer-token
+authentication, and keep the token in the connector's secret settings. Host the
+WSGI application behind a production WSGI server and HTTPS reverse proxy; keep
+AnkiConnect bound to loopback on the machine that owns the collection. The
+repository provides the secured API and contract, but does not deploy a public
+endpoint or configure a ChatGPT account.
+
 The `AUTO` sections in generated files are refreshed on every run. The
 "Manual notes" section is preserved.
 
@@ -89,11 +106,13 @@ src/anki_agent/
   preview.py       read-only note and card previews
   mutations.py     preview-gated note creation and field updates
   history.py      append-only mutation audit and recovery status
+  remote.py       authenticated tenant-isolated WSGI API
   storage.py       Storage interface and LocalStorage implementation
   docs_gen.py      note type and deck documentation generation
 test_run.py        smoke test
 test_agent.py      automated tests using simulated Anki responses
 ROADMAP.md         project roadmap
+openapi.yaml       ChatGPT Action / remote connector API contract
 manifest.md        project requirements
 ```
 
@@ -104,4 +123,4 @@ manifest.md        project requirements
 - [x] Duplicate review and individually approved batches
 - [x] Approved tag changes, deck moves, and confirmed note deletions
 - [ ] `GoogleDriveStorage` with the same interface as `Storage`
-- [ ] ChatGPT integration
+- [x] Secured remote API and ChatGPT Action contract

@@ -84,7 +84,7 @@ Testing starts in the early iterations: use local automated tests for applicatio
 - Assess which operations can be undone or restored.
 - Test incomplete records and interruptions during operations.
 
-## 10 - Remote connection and ChatGPT
+## 10 - Remote connection and ChatGPT *(completed)*
 
 **Goal:** use the agent from ChatGPT without requiring local access to the PC.
 
@@ -92,6 +92,9 @@ Testing starts in the early iterations: use local automated tests for applicatio
 - Define authentication, data isolation, and credential handling.
 - Connect the agent's features to the remote interface.
 - Test the full flow from ChatGPT to Anki and back.
+
+The repository provides the authenticated HTTPS-only WSGI API and OpenAPI
+contract. Public hosting and ChatGPT account configuration are deployment tasks.
 
 ## 11 - Distribution and polish
 

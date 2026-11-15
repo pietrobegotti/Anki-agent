@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import unittest
+import io
+import json
 from unittest.mock import patch
 
 from anki_agent import docs_gen
@@ -26,6 +28,7 @@ from anki_agent.mutations import (
 )
 from anki_agent.duplicates import DuplicateChecker
 from anki_agent.history import MutationHistory
+from anki_agent.remote import RemoteGateway, RemoteUserContext
 
 
 class FakeAnki:
@@ -778,6 +781,59 @@ class MutationHistoryTests(unittest.TestCase):
         self.assertEqual(history.recovery_status()["outcome_unknown"], [proposal.proposal_id])
         with self.assertRaises(MutationError):
             service.confirm(proposal.proposal_id, user_response="approve")
+
+
+class RemoteGatewayTests(unittest.TestCase):
+    def test_requires_bearer_authentication_and_isolates_collection_contexts(self):
+        gateway = RemoteGateway()
+        first_anki = FakeMutationAnki()
+        second_anki = FakeMutationAnki()
+        second_anki.decks = ["Private"]
+        gateway.register("a" * 40, RemoteUserContext("first", NoteReader(first_anki), NoteMutationService(first_anki)))
+        gateway.register("b" * 40, RemoteUserContext("second", NoteReader(second_anki), NoteMutationService(second_anki)))
+
+        self.assertEqual(gateway.dispatch(None, "GET", "/v1/collection")[0], 401)
+        first = gateway.dispatch("Bearer " + "a" * 40, "GET", "/v1/collection")
+        second = gateway.dispatch("Bearer " + "b" * 40, "GET", "/v1/collection")
+        self.assertEqual(first[1]["decks"], ["Japanese"])
+        self.assertEqual(second[1]["decks"], ["Private"])
+
+    def test_remote_proposal_requires_a_separate_approval_call(self):
+        gateway = RemoteGateway()
+        anki = FakeMutationAnki()
+        gateway.register("c" * 40, RemoteUserContext("user", NoteReader(anki), NoteMutationService(anki)))
+        token = "Bearer " + "c" * 40
+        status, proposal = gateway.dispatch(token, "POST", "/v1/proposals/add", {
+            "deck": "Japanese", "note_type": "Basic", "fields": {"Front": "Remote question"}
+        })
+        self.assertEqual(status, 201)
+        self.assertEqual(anki.write_calls, [])
+
+        confirmed = gateway.dispatch(token, "POST", f"/v1/proposals/{proposal['proposal_id']}/confirm", {
+            "user_response": "approve"
+        })
+        self.assertEqual(confirmed[0], 200)
+        self.assertEqual(anki.write_calls[0][0], "addNote")
+
+    def test_wsgi_transport_rejects_plain_http_and_serves_json_over_https(self):
+        gateway = RemoteGateway()
+        anki = FakeMutationAnki()
+        gateway.register("d" * 40, RemoteUserContext("user", NoteReader(anki), NoteMutationService(anki)))
+        responses = []
+
+        def call_app(scheme):
+            environ = {
+                "REQUEST_METHOD": "GET", "PATH_INFO": "/v1/collection",
+                "wsgi.url_scheme": scheme, "wsgi.input": io.BytesIO(),
+                "HTTP_AUTHORIZATION": "Bearer " + "d" * 40,
+            }
+            body = b"".join(gateway(environ, lambda status, headers: responses.append((status, headers))))
+            return responses[-1][0], json.loads(body)
+
+        self.assertEqual(call_app("http")[0], "400 Bad Request")
+        status, payload = call_app("https")
+        self.assertEqual(status, "200 OK")
+        self.assertEqual(payload["decks"], ["Japanese"])
 
 
 if __name__ == "__main__":

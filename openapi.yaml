@@ -1,0 +1,166 @@
+openapi: 3.1.0
+info:
+  title: Anki Agent Remote API
+  version: 1.0.0
+  description: >-
+    Connector-neutral API for a ChatGPT Action or other remote client. The host
+    must provide HTTPS and configure one isolated user context per bearer token.
+servers:
+  - url: https://REPLACE_WITH_YOUR_HOST
+security:
+  - bearerAuth: []
+paths:
+  /v1/collection:
+    get:
+      operationId: getCollection
+      summary: List this user's decks and note types
+      responses:
+        '200': {description: Collection inventory}
+        '401': {description: Missing or invalid token}
+  /v1/notes/search:
+    post:
+      operationId: searchNotes
+      summary: Search notes with bounded results
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                text: {type: string}
+                deck: {type: string}
+                note_type: {type: string}
+                tags: {type: array, items: {type: string}}
+                limit: {type: integer, minimum: 1, maximum: 200, default: 50}
+      responses:
+        '200': {description: Matching notes}
+        '400': {description: Invalid search}
+        '401': {description: Missing or invalid token}
+  /v1/proposals/add:
+    post:
+      operationId: proposeAddNote
+      summary: Preview a note addition; does not write to Anki
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [deck, note_type, fields]
+              properties:
+                deck: {type: string}
+                note_type: {type: string}
+                fields: {type: object, additionalProperties: {type: string}}
+                tags: {type: array, items: {type: string}}
+                allow_possible_duplicates: {type: boolean, default: false, description: Set true only after reviewing returned matches and choosing to keep both.}
+      responses:
+        '201': {description: Preview and proposal ID}
+        '409': {description: Possible duplicates require review}
+  /v1/proposals/update:
+    post:
+      operationId: proposeUpdateNote
+      summary: Preview a note update; does not write to Anki
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [note_id, fields]
+              properties:
+                note_id: {type: integer}
+                fields: {type: object, additionalProperties: {type: string}}
+      responses:
+        '201': {description: Before and after preview}
+  /v1/proposals/delete:
+    post:
+      operationId: proposeDeleteNote
+      summary: Preview exact note deletion and return its required second confirmation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [note_id]
+              properties:
+                note_id: {type: integer}
+      responses:
+        '201': {description: Note preview and exact deletion confirmation phrase}
+  /v1/proposals/move-deck:
+    post:
+      operationId: proposeMoveNote
+      summary: Preview moving a note to a deck
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [note_id, deck]
+              properties:
+                note_id: {type: integer}
+                deck: {type: string}
+      responses:
+        '201': {description: Proposal preview}
+  /v1/proposals/add-tags:
+    post:
+      operationId: proposeAddTags
+      summary: Preview adding tags to a note
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [note_id, tags]
+              properties:
+                note_id: {type: integer}
+                tags: {type: array, items: {type: string}}
+      responses:
+        '201': {description: Proposal preview}
+  /v1/proposals/remove-tags:
+    post:
+      operationId: proposeRemoveTags
+      summary: Preview removing tags from a note
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [note_id, tags]
+              properties:
+                note_id: {type: integer}
+                tags: {type: array, items: {type: string}}
+      responses:
+        '201': {description: Proposal preview}
+  /v1/proposals/{proposal_id}/confirm:
+    post:
+      operationId: confirmProposal
+      summary: Apply one proposal after the user reviewed and approved its preview
+      parameters:
+        - in: path
+          name: proposal_id
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_response]
+              properties:
+                user_response: {type: string, enum: [approve, reject]}
+                delete_confirmation: {type: string}
+      responses:
+        '200': {description: Operation result}
+        '409': {description: Rejected, stale, or uncertain proposal}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque token
