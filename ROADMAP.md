@@ -11,7 +11,7 @@ Testing starts in the early iterations: use local automated tests for applicatio
 - Generate Markdown files for decks and note types.
 - Verify the script with Anki Desktop running.
 
-## 02 - Note type structure
+## 02 - Note type structure *(completed)*
 
 **Goal:** document how notes are structured and which cards they generate.
 
@@ -21,7 +21,7 @@ Testing starts in the early iterations: use local automated tests for applicatio
 - Update documentation while preserving manual notes.
 - Add automated tests with simulated Anki responses.
 
-## 03 - Collection conventions and knowledge
+## 03 - Collection conventions and knowledge *(completed)*
 
 **Goal:** add the rules needed to choose and fill notes alongside the technical data.
 

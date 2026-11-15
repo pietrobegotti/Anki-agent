@@ -4,7 +4,12 @@ import unittest
 from unittest.mock import patch
 
 from anki_agent import docs_gen
-from anki_agent.docs_gen import build_note_type_auto, merge_with_manual
+from anki_agent.docs_gen import (
+    build_note_type_auto,
+    merge_with_manual,
+    refresh_collection_guides,
+    refresh_deck_docs,
+)
 
 
 class FakeAnki:
@@ -16,12 +21,14 @@ class FakeAnki:
         note_ids: list[int] | None = None,
         notes: dict[int, dict] | None = None,
         css: str = ".card { color: black; }",
+        decks: list[str] | None = None,
     ):
         self.fields = fields
         self.templates = templates
         self.note_ids = note_ids or []
         self.notes = notes or {}
         self.css = css
+        self.decks = decks or []
         self.notes_info_calls: list[list[int]] = []
 
     def model_field_names(self, model: str) -> list[str]:
@@ -36,9 +43,29 @@ class FakeAnki:
     def find_notes(self, query: str) -> list[int]:
         return self.note_ids
 
+    def deck_names(self) -> list[str]:
+        return self.decks
+
     def notes_info(self, note_ids: list[int]) -> list[dict]:
         self.notes_info_calls.append(note_ids)
         return [self.notes[note_id] for note_id in note_ids]
+
+
+class FakeStorage:
+    def __init__(self, files: dict[str, str] | None = None):
+        self.files = files or {}
+
+    def read(self, path: str) -> str | None:
+        return self.files.get(path)
+
+    def write(self, path: str, text: str) -> None:
+        self.files[path] = text
+
+    def append(self, path: str, text: str) -> None:
+        self.files[path] = self.files.get(path, "") + text
+
+    def list(self, prefix: str = "") -> list[str]:
+        return sorted(path for path in self.files if path.startswith(prefix))
 
 
 class NoteTypeDocumentationTests(unittest.TestCase):
@@ -122,6 +149,53 @@ class NoteTypeDocumentationTests(unittest.TestCase):
         self.assertIn("## Manual notes (conventions, field meanings, exceptions)", merged)
         self.assertIn("Use this note type for short prompts.", merged)
         self.assertNotIn("Note manuali", merged)
+
+    def test_replaces_empty_note_placeholder_with_field_convention_format(self) -> None:
+        existing = (
+            "<!-- AUTO:END -->\n\n"
+            "## Note manuali (convenzioni, significato dei campi, eccezioni)\n\n"
+            "_Da compilare._\n"
+        )
+
+        merged = merge_with_manual(existing, "# Note type: Example\n\n<!-- AUTO:START -->\n")
+
+        self.assertIn("### Field conventions", merged)
+        self.assertIn("### Note-type conventions", merged)
+        self.assertNotIn("_Da compilare._", merged)
+
+    def test_refreshes_deck_auto_count_and_preserves_manual_content(self) -> None:
+        storage = FakeStorage(
+            {
+                "decks/Japanese.md": (
+                    "# Deck: Japanese\n\n- **Notes (including subdecks):** 99\n\n"
+                    "## Conventions, note types used, and preferences\n\n"
+                    "Use this deck for daily vocabulary.\n"
+                )
+            }
+        )
+        anki = FakeAnki(fields=[], templates={}, note_ids=[1, 2, 3], decks=["Japanese"])
+
+        written = refresh_deck_docs(anki, storage)
+        markdown = storage.read("decks/Japanese.md")
+
+        self.assertIn("decks/Japanese.md", written)
+        self.assertIn("<!-- AUTO:START (automatically generated, do not edit) -->", markdown)
+        self.assertIn("**Notes (including subdecks):** 3", markdown)
+        self.assertIn("Use this deck for daily vocabulary.", markdown)
+        self.assertNotIn("**Notes (including subdecks):** 99", markdown)
+
+    def test_creates_guides_once_and_preserves_user_edits(self) -> None:
+        storage = FakeStorage()
+
+        created = refresh_collection_guides(storage)
+        preferences = storage.read("preferences/agent.md")
+        storage.write("preferences/agent.md", preferences + "\nUser-confirmed: concise responses.\n")
+        created_again = refresh_collection_guides(storage)
+
+        self.assertEqual(set(created), {"conventions/README.md", "preferences/agent.md"})
+        self.assertEqual(created_again, [])
+        self.assertIn("**Application and documentation language:** English.", preferences)
+        self.assertIn("User-confirmed: concise responses.", storage.read("preferences/agent.md"))
 
 
 if __name__ == "__main__":

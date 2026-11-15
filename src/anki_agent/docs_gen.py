@@ -18,7 +18,34 @@ AUTO_START = "<!-- AUTO:START (automatically generated, do not edit) -->"
 AUTO_END = "<!-- AUTO:END -->"
 MANUAL_HEADER = "## Manual notes (conventions, field meanings, exceptions)"
 MANUAL_PLACEHOLDER = "_To be completed._"
+DECK_MANUAL_HEADER = "## Manual notes (deck conventions and preferences)"
 NOTE_INFO_BATCH_SIZE = 250
+
+NOTE_MANUAL_TEMPLATE = f"""{MANUAL_HEADER}
+
+### Field conventions
+
+For each field, record its purpose, format, examples, and exceptions.
+
+### Note-type conventions
+
+Record conventions that apply to the note type as a whole.
+"""
+
+DECK_MANUAL_TEMPLATE = f"""{DECK_MANUAL_HEADER}
+
+### Conventions
+
+Record deck-specific rules and relationships with other decks.
+
+### Note types used
+
+List the note types used in this deck and any selection rules.
+
+### Preferences
+
+Record user preferences specific to this deck.
+"""
 
 
 def _field_used(field: str, template: str) -> bool:
@@ -138,14 +165,18 @@ def build_note_type_auto(ac: AnkiConnect, model: str) -> str:
 
 def merge_with_manual(existing: str | None, auto_block: str) -> str:
     """Replace only the AUTO section and preserve the existing manual section."""
-    manual = f"{MANUAL_HEADER}\n\n{MANUAL_PLACEHOLDER}\n"
+    manual = NOTE_MANUAL_TEMPLATE
     if existing and AUTO_END in existing:
-        manual = existing.split(AUTO_END, 1)[1].lstrip("\n")
-        manual = manual.replace(
+        existing_manual = existing.split(AUTO_END, 1)[1].lstrip("\n").strip()
+        existing_manual = existing_manual.replace(
             "## Note manuali (convenzioni, significato dei campi, eccezioni)",
             MANUAL_HEADER,
         ).replace("_Da compilare._", MANUAL_PLACEHOLDER)
-    return auto_block.rstrip() + "\n\n" + manual if manual.strip() else auto_block
+        if existing_manual and existing_manual != f"{MANUAL_HEADER}\n\n{MANUAL_PLACEHOLDER}":
+            manual = existing_manual + "\n"
+        else:
+            manual = NOTE_MANUAL_TEMPLATE
+    return auto_block.rstrip() + "\n\n" + manual.rstrip() + "\n"
 
 
 def _safe_name(name: str) -> str:
@@ -164,21 +195,99 @@ def refresh_note_type_docs(ac: AnkiConnect, storage: Storage, only: str | None =
     return written
 
 
+def _build_deck_auto(ac: AnkiConnect, deck: str) -> str:
+    note_count = len(ac.find_notes(f'"deck:{deck}"'))
+    return (
+        f"# Deck: {deck}\n\n{AUTO_START}\n\n"
+        f"- **Notes (including subdecks):** {note_count}\n\n{AUTO_END}"
+    )
+
+
+def merge_deck_with_manual(existing: str | None, auto_block: str) -> str:
+    """Refresh generated deck metadata while preserving manual conventions."""
+    manual = DECK_MANUAL_TEMPLATE
+    if existing:
+        if AUTO_END in existing:
+            existing_manual = existing.split(AUTO_END, 1)[1].strip()
+            manual = existing_manual + "\n" if existing_manual else DECK_MANUAL_TEMPLATE
+        else:
+            legacy_headings = (
+                DECK_MANUAL_HEADER,
+                "## Conventions, note types used, and preferences",
+            )
+            for heading in legacy_headings:
+                if heading in existing:
+                    existing_manual = existing.split(heading, 1)[1].strip()
+                    if existing_manual in {"", "_Da compilare._", MANUAL_PLACEHOLDER}:
+                        manual = DECK_MANUAL_TEMPLATE
+                    else:
+                        manual = f"{DECK_MANUAL_HEADER}\n\n{existing_manual}\n"
+                    break
+            else:
+                manual = existing.rstrip() + "\n"
+        manual = manual.replace("_Da compilare._", MANUAL_PLACEHOLDER)
+    return auto_block.rstrip() + "\n\n" + manual.rstrip() + "\n"
+
+
 def refresh_deck_docs(ac: AnkiConnect, storage: Storage) -> list[str]:
-    """Create a skeleton for each deck (if missing) and a deck index."""
+    """Refresh generated metadata for each deck and preserve its manual section."""
     decks = sorted(ac.deck_names())
     written = []
     for deck in decks:
         path = f"decks/{_safe_name(deck)}.md"
-        if storage.read(path) is None:
-            n = len(ac.find_notes(f'"deck:{deck}"'))
-            storage.write(
-                path,
-                f"# Deck: {deck}\n\n- **Notes (including subdecks):** {n}\n\n"
-                "## Conventions, note types used, and preferences\n\n_To be completed._\n",
-            )
-            written.append(path)
+        auto = _build_deck_auto(ac, deck)
+        storage.write(path, merge_deck_with_manual(storage.read(path), auto))
+        written.append(path)
     index = "# Deck index\n\n" + "\n".join(f"- {d}" for d in decks) + "\n"
     storage.write("decks/_index.md", index)
-    log_line(storage, f"refreshed decks: {len(decks)} decks, {len(written)} new files")
+    log_line(storage, f"refreshed deck documentation: {len(written)} files")
     return written
+
+
+def refresh_collection_guides(storage: Storage) -> list[str]:
+    """Create collection convention and agent preference guides without overwriting them."""
+    guides = {
+        "conventions/README.md": """# Collection documentation conventions
+
+This guide defines how collection knowledge is recorded. Keep automatically detected data separate from user-maintained notes.
+
+## Note type files
+
+Use `note_types/<note-type>.md`. The generated section is bounded by `AUTO:START` and `AUTO:END`; do not edit that section. Add user-confirmed information under `Manual notes`.
+
+For each field, record its purpose, expected format, examples, and exceptions under `Field conventions`. Put rules that apply to the whole note type under `Note-type conventions`.
+
+## Deck files
+
+Use `decks/<deck>.md`. Keep the generated note count inside the `AUTO` section. Record deck-specific rules, note types used, and preferences in the manual section.
+
+## Agent preferences
+
+Use `preferences/agent.md` for confirmed preferences that apply across the collection. Mark unconfirmed preferences as open questions; do not infer them from examples.
+
+## Language and source data
+
+Write application documentation and generated explanations in English. Preserve Anki deck names, note type names, field names, template source, and note content exactly as they appear in the collection.
+""",
+        "preferences/agent.md": """# Agent preferences
+
+Record only preferences confirmed by the user. Update this file when the user changes a preference.
+
+## Confirmed preferences
+
+- **Application and documentation language:** English.
+
+## Preferences to clarify
+
+- Response length and level of detail.
+- Preview format.
+- Preferred level of autonomy beyond the approval requirements in the project manifest.
+""",
+    }
+    created = []
+    for path, content in guides.items():
+        if storage.read(path) is None:
+            storage.write(path, content)
+            created.append(path)
+    log_line(storage, f"refreshed collection guides: {len(created)} new files")
+    return created
