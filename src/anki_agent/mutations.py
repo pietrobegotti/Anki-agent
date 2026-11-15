@@ -10,6 +10,7 @@ from typing import Mapping
 from .ankiconnect import AnkiConnect
 from .duplicates import DuplicateChecker, DuplicateMatch
 from .preview import NoteChangePreview, NotePreview, PreviewService
+from .reader import NoteReader, NoteRecord
 
 
 class MutationError(Exception):
@@ -69,6 +70,14 @@ class BatchProposal:
 
 
 @dataclass(frozen=True)
+class CollectionChangePreview:
+    note: NoteRecord
+    operation: str
+    values: tuple[str, ...]
+    destination_deck: str | None = None
+
+
+@dataclass(frozen=True)
 class BatchOperationResult:
     proposal_id: str
     status: str
@@ -90,7 +99,11 @@ class _PendingOperation:
     status: str = "pending"
 
 
-def _fingerprint(operation: str, payload: dict, preview: NotePreview | NoteChangePreview) -> str:
+def _fingerprint(
+    operation: str,
+    payload: dict,
+    preview: NotePreview | NoteChangePreview | CollectionChangePreview,
+) -> str:
     content = json.dumps(
         {"operation": operation, "payload": payload, "preview": asdict(preview)},
         sort_keys=True,
@@ -112,6 +125,7 @@ class NoteMutationService:
         self.anki = anki
         self.previews = previews or PreviewService(anki)
         self.duplicates = duplicates or DuplicateChecker(anki)
+        self.reader = NoteReader(anki)
         self._pending: dict[str, _PendingOperation] = {}
         self._batches: dict[str, BatchProposal] = {}
         self._batch_status: dict[str, str] = {}
@@ -153,6 +167,44 @@ class NoteMutationService:
         preview = self.previews.preview_edit(note_id, updates)
         payload = {"note_id": note_id, "fields": dict(updates)}
         return self._register("update", payload, preview)
+
+    def propose_add_tags(self, note_id: int, tags: list[str] | tuple[str, ...]) -> OperationProposal:
+        return self._propose_collection_change(note_id, "add_tags", tags=tags)
+
+    def propose_remove_tags(self, note_id: int, tags: list[str] | tuple[str, ...]) -> OperationProposal:
+        return self._propose_collection_change(note_id, "remove_tags", tags=tags)
+
+    def propose_move_to_deck(self, note_id: int, deck: str) -> OperationProposal:
+        if deck not in self.anki.deck_names():
+            raise ValueError(f"Unknown deck: {deck}")
+        return self._propose_collection_change(note_id, "move_deck", deck=deck)
+
+    def propose_delete(self, note_id: int) -> OperationProposal:
+        note = self._read_one(note_id)
+        preview = CollectionChangePreview(note, "delete", ())
+        return self._register("delete", {"note_id": note_id, "tags": [], "deck": None}, preview)
+
+    def _propose_collection_change(
+        self,
+        note_id: int,
+        operation: str,
+        *,
+        tags: list[str] | tuple[str, ...] = (),
+        deck: str | None = None,
+    ) -> OperationProposal:
+        note = self._read_one(note_id)
+        normalized_tags = tuple(dict.fromkeys(tag.strip() for tag in tags if tag.strip()))
+        if operation in {"add_tags", "remove_tags"} and not normalized_tags:
+            raise ValueError("Provide at least one tag")
+        preview = CollectionChangePreview(note, operation, normalized_tags, deck)
+        payload = {"note_id": note_id, "tags": list(normalized_tags), "deck": deck}
+        return self._register(operation, payload, preview)
+
+    def _read_one(self, note_id: int) -> NoteRecord:
+        notes = self.reader.read([note_id])
+        if not notes:
+            raise ValueError(f"Note {note_id} was not found")
+        return notes[0]
 
     def propose_batch(self, requests: list[AddNoteRequest | UpdateNoteRequest]) -> BatchProposal:
         if not requests:
@@ -218,7 +270,7 @@ class NoteMutationService:
         self,
         operation: str,
         payload: dict,
-        preview: NotePreview | NoteChangePreview,
+        preview: NotePreview | NoteChangePreview | CollectionChangePreview,
     ) -> OperationProposal:
         proposal = OperationProposal(secrets.token_urlsafe(12), operation, preview)
         fingerprint = _fingerprint(operation, payload, preview)
@@ -231,7 +283,13 @@ class NoteMutationService:
             raise MutationError(f"Proposal cannot be cancelled in state: {pending.status}")
         pending.status = "cancelled"
 
-    def confirm(self, proposal_id: str, *, user_response: str) -> MutationResult:
+    def confirm(
+        self,
+        proposal_id: str,
+        *,
+        user_response: str,
+        delete_confirmation: str = "",
+    ) -> MutationResult:
         """Apply a proposal only when the caller passes an explicit 'approve' response."""
         pending = self._get_pending(proposal_id)
         if pending.status != "pending":
@@ -239,6 +297,10 @@ class NoteMutationService:
         if user_response.strip().casefold() != "approve":
             pending.status = "cancelled"
             raise ApprovalRejectedError("No write was made; the proposal was cancelled.")
+        if pending.proposal.operation == "delete" and delete_confirmation.strip() != f"DELETE {pending.payload['note_id']}":
+            raise ApprovalRejectedError(
+                f"Deletion requires a second confirmation: DELETE {pending.payload['note_id']}"
+            )
 
         self._verify_current_state(pending)
         pending.status = "applying"
@@ -249,11 +311,28 @@ class NoteMutationService:
                     raise MutationError("AnkiConnect did not return a note ID")
                 result = MutationResult("add", int(note_id))
             else:
-                self.anki._invoke_approved_write(
-                    "updateNoteFields",
-                    note={"id": pending.payload["note_id"], "fields": pending.payload["fields"]},
-                )
-                result = MutationResult("update", int(pending.payload["note_id"]))
+                operation = pending.proposal.operation
+                note_id = int(pending.payload["note_id"])
+                if operation == "update":
+                    self.anki._invoke_approved_write(
+                        "updateNoteFields", note={"id": note_id, "fields": pending.payload["fields"]}
+                    )
+                elif operation == "add_tags":
+                    self.anki._invoke_approved_write(
+                        "addTags", notes=[note_id], tags=" ".join(pending.payload["tags"])
+                    )
+                elif operation == "remove_tags":
+                    self.anki._invoke_approved_write(
+                        "removeTags", notes=[note_id], tags=" ".join(pending.payload["tags"])
+                    )
+                elif operation == "move_deck":
+                    self.anki._invoke_approved_write(
+                        "changeDeck", cards=list(pending.proposal.preview.note.card_ids),
+                        deck=pending.payload["deck"]
+                    )
+                elif operation == "delete":
+                    self.anki._invoke_approved_write("deleteNotes", notes=[note_id])
+                result = MutationResult(operation, note_id)
         except Exception as exc:
             pending.status = "outcome_unknown"
             raise MutationOutcomeUnknown(
@@ -285,8 +364,23 @@ class NoteMutationService:
                 deck=payload["deckName"],
                 tags=payload["tags"],
             )
-        else:
+        elif pending.proposal.operation == "update":
             current_preview = self.previews.preview_edit(payload["note_id"], payload["fields"])
+        else:
+            try:
+                current_note = self._read_one(payload["note_id"])
+            except ValueError as exc:
+                pending.status = "stale"
+                raise StaleProposalError("The note changed or was deleted after the preview; create a new proposal.") from exc
+            if pending.proposal.operation == "move_deck" and payload["deck"] not in self.anki.deck_names():
+                pending.status = "stale"
+                raise StaleProposalError("The destination deck changed after the preview; create a new proposal.")
+            current_preview = CollectionChangePreview(
+                current_note,
+                pending.proposal.operation,
+                tuple(payload["tags"]),
+                payload["deck"],
+            )
         current_fingerprint = _fingerprint(pending.proposal.operation, payload, current_preview)
         if current_fingerprint != pending.fingerprint:
             pending.status = "stale"

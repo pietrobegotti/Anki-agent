@@ -3,9 +3,9 @@
 An AI agent for managing an Anki collection (notes, decks, tags, and duplicates)
 through [AnkiConnect](https://ankiweb.net/shared/info/2055492159).
 
-**Status:** Step 7 — duplicate review and batched note operations are supported.
-Creation and field updates require a preview and explicit approval before Anki
-is changed.
+**Status:** Step 8 — note creation, field updates, tag changes, deck moves, and
+deletions require a preview and explicit approval. Deletion also requires a
+second confirmation naming the note ID.
 
 ## Requirements
 
@@ -59,6 +59,10 @@ Possible matches require review; callers can pass an explicit keep-both choice
 after that review. Batch proposals combine add and update previews while each
 operation still requires its own approval or rejection.
 
+Tag changes and moving a note to another deck use the same preview-and-approval
+flow. Deletion previews the exact note and requires `DELETE <note ID>` as a
+second confirmation. Deck creation and deck deletion are not supported.
+
 The `AUTO` sections in generated files are refreshed on every run. The
 "Manual notes" section is preserved.
 
@@ -90,5 +94,6 @@ manifest.md        project requirements
 - [x] Write approved note additions and field updates
 - [x] Preview and approval before every note operation
 - [x] Duplicate review and individually approved batches
+- [x] Approved tag changes, deck moves, and confirmed note deletions
 - [ ] `GoogleDriveStorage` with the same interface as `Storage`
 - [ ] ChatGPT integration

@@ -66,7 +66,7 @@ Testing starts in the early iterations: use local automated tests for applicatio
 - Present one combined preview for multiple operations.
 - Allow each operation to be approved or rejected individually.
 
-## 08 - Decks, tags, and deletions
+## 08 - Decks, tags, and deletions *(completed)*
 
 **Goal:** extend operations to the collection structure.
 

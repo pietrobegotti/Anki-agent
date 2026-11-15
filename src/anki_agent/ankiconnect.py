@@ -25,7 +25,9 @@ WRITE_ACTIONS = frozenset(
         "updateModelStyling",
     }
 )
-APPROVED_NOTE_WRITE_ACTIONS = frozenset({"addNote", "updateNoteFields"})
+APPROVED_NOTE_WRITE_ACTIONS = frozenset(
+    {"addNote", "updateNoteFields", "addTags", "removeTags", "changeDeck", "deleteNotes"}
+)
 
 
 class AnkiConnectError(Exception):

@@ -689,5 +689,58 @@ class DuplicateCheckerTests(unittest.TestCase):
         self.assertEqual(matches[0].score, 0.91)
 
 
+class CollectionOperationTests(unittest.TestCase):
+    def setUp(self):
+        self.anki = FakeMutationAnki(
+            notes=[
+                {
+                    "noteId": 12,
+                    "modelName": "Basic",
+                    "fields": {
+                        "Front": {"value": "Question", "order": 0},
+                        "Back": {"value": "Answer", "order": 1},
+                    },
+                    "tags": ["old"],
+                    "cards": [120, 121],
+                }
+            ]
+        )
+        self.anki.decks.append("Archive")
+        self.service = NoteMutationService(self.anki)
+
+    def test_tag_and_deck_changes_require_approval_and_have_precise_payloads(self):
+        add = self.service.propose_add_tags(12, ["new"])
+        move = self.service.propose_move_to_deck(12, "Archive")
+        remove = self.service.propose_remove_tags(12, ["old"])
+        self.assertEqual(self.anki.write_calls, [])
+
+        for proposal in (add, move, remove):
+            self.service.confirm(proposal.proposal_id, user_response="approve")
+        self.assertEqual([call[0] for call in self.anki.write_calls], ["addTags", "changeDeck", "removeTags"])
+        self.assertEqual(self.anki.write_calls[0][1], {"notes": [12], "tags": "new"})
+        self.assertEqual(self.anki.write_calls[1][1], {"cards": [120, 121], "deck": "Archive"})
+        self.assertEqual(self.anki.write_calls[2][1], {"notes": [12], "tags": "old"})
+
+    def test_delete_requires_preview_approval_and_second_exact_confirmation(self):
+        proposal = self.service.propose_delete(12)
+        self.assertEqual(proposal.preview.note.note_id, 12)
+        with self.assertRaisesRegex(ApprovalRejectedError, "second confirmation"):
+            self.service.confirm(proposal.proposal_id, user_response="approve")
+        self.assertEqual(self.anki.write_calls, [])
+        self.service.confirm(
+            proposal.proposal_id, user_response="approve", delete_confirmation="DELETE 12"
+        )
+        self.assertEqual(self.anki.write_calls, [("deleteNotes", {"notes": [12]})])
+
+    def test_collection_change_is_stale_if_note_disappears(self):
+        proposal = self.service.propose_delete(12)
+        self.anki.notes.clear()
+        with self.assertRaises(StaleProposalError):
+            self.service.confirm(
+                proposal.proposal_id, user_response="approve", delete_confirmation="DELETE 12"
+            )
+        self.assertEqual(self.anki.write_calls, [])
+
+
 if __name__ == "__main__":
     unittest.main()
