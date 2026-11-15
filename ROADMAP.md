@@ -30,7 +30,7 @@ Testing starts in the early iterations: use local automated tests for applicatio
 - Separate automatically detected data from manual content.
 - Verify that regeneration preserves manual sections.
 
-## 04 - Search and read notes
+## 04 - Search and read notes *(completed)*
 
 **Goal:** find existing notes and show their contents without changing them.
 

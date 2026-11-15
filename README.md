@@ -3,8 +3,8 @@
 An AI agent for managing an Anki collection (notes, decks, tags, and duplicates)
 through [AnkiConnect](https://ankiweb.net/shared/info/2055492159).
 
-**Status:** Step 3 — collection conventions and confirmed agent preferences,
-alongside read-only note type structure documentation. No changes are made to Anki.
+**Status:** Step 4 — read-only note search and retrieval, plus collection
+conventions and note type structure documentation. No changes are made to Anki.
 
 ## Requirements
 
@@ -30,6 +30,19 @@ Git because it contains data from your personal collection. The script also
 creates convention and preference guides if they do not exist; it preserves
 manual content and refreshes generated deck counts.
 
+## Read notes from Python
+
+`NoteReader` supports bounded searches by text, deck, note type, and tags, and
+returns normalized fields, tags, and card IDs:
+
+```python
+from anki_agent.ankiconnect import AnkiConnect
+from anki_agent.reader import NoteReader
+
+reader = NoteReader(AnkiConnect())
+notes = reader.search(text="趣味", deck="Japanese", limit=20)
+```
+
 The `AUTO` sections in generated files are refreshed on every run. The
 "Manual notes" section is preserved.
 
@@ -44,6 +57,7 @@ uv run python test_docs_gen.py
 ```
 src/anki_agent/
   ankiconnect.py   minimal AnkiConnect client (standard library only)
+  reader.py        bounded read-only note search and retrieval
   storage.py       Storage interface and LocalStorage implementation
   docs_gen.py      note type and deck documentation generation
 test_run.py        smoke test

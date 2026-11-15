@@ -4,12 +4,14 @@ import unittest
 from unittest.mock import patch
 
 from anki_agent import docs_gen
+from anki_agent.ankiconnect import AnkiConnectError
 from anki_agent.docs_gen import (
     build_note_type_auto,
     merge_with_manual,
     refresh_collection_guides,
     refresh_deck_docs,
 )
+from anki_agent.reader import NoteReader, build_search_query
 
 
 class FakeAnki:
@@ -196,6 +198,94 @@ class NoteTypeDocumentationTests(unittest.TestCase):
         self.assertEqual(created_again, [])
         self.assertIn("**Application and documentation language:** English.", preferences)
         self.assertIn("User-confirmed: concise responses.", storage.read("preferences/agent.md"))
+
+
+class FakeReaderAnki:
+    def __init__(self, note_ids: list[int], records: list[dict] | None = None, error=None):
+        self.note_ids = note_ids
+        self.records = records or []
+        self.error = error
+        self.query = None
+        self.requested_note_ids: list[int] = []
+
+    def find_notes(self, query: str) -> list[int]:
+        self.query = query
+        if self.error:
+            raise self.error
+        return self.note_ids
+
+    def notes_info(self, note_ids: list[int]) -> list[dict]:
+        self.requested_note_ids = note_ids
+        if self.error:
+            raise self.error
+        return self.records
+
+
+class NoteReaderTests(unittest.TestCase):
+    def test_builds_quoted_search_for_text_deck_note_type_and_tags(self) -> None:
+        query = build_search_query(
+            text='a "dog"_2:3 & <>',
+            deck="Japanese::Words and More",
+            note_type="Basic (and reversed card)",
+            tags=["jlpt::n2", "daily review"],
+        )
+
+        self.assertEqual(
+            query,
+            '"a \\"dog\\"\\_2\\:3 &amp; &lt;&gt;" '
+            'deck:"Japanese::Words and More" '
+            'note:"Basic (and reversed card)" '
+            'tag:"jlpt::n2" tag:"daily review"',
+        )
+
+    def test_search_limits_results_and_normalizes_note_fields(self) -> None:
+        anki = FakeReaderAnki(
+            [2, 1, 3],
+            records=[
+                {
+                    "noteId": 1,
+                    "modelName": "Basic",
+                    "fields": {"Front": {"value": "one", "order": 0}},
+                    "tags": ["known"],
+                    "cards": [101],
+                },
+                {
+                    "noteId": 2,
+                    "modelName": "Cloze",
+                    "fields": {"Text": {"value": "two", "order": 0}},
+                    "tags": [],
+                    "cards": [202, 203],
+                },
+            ],
+        )
+
+        results = NoteReader(anki).search(text="word", limit=2)
+
+        self.assertEqual(anki.query, '"word"')
+        self.assertEqual(anki.requested_note_ids, [2, 1])
+        self.assertEqual([note.note_id for note in results], [2, 1])
+        self.assertEqual(results[0].fields, {"Text": "two"})
+        self.assertEqual(results[0].card_ids, (202, 203))
+        self.assertEqual(results[1].tags, ("known",))
+
+    def test_empty_results_do_not_fetch_note_details(self) -> None:
+        anki = FakeReaderAnki([])
+
+        results = NoteReader(anki).search(deck="Japanese")
+
+        self.assertEqual(results, [])
+        self.assertEqual(anki.requested_note_ids, [])
+
+    def test_rejects_unbounded_or_invalid_searches_and_propagates_api_errors(self) -> None:
+        reader = NoteReader(FakeReaderAnki([]))
+        with self.assertRaises(ValueError):
+            reader.search()
+        with self.assertRaises(ValueError):
+            reader.search(text="word", limit=201)
+
+        failing = NoteReader(FakeReaderAnki([], error=AnkiConnectError("offline")))
+        with self.assertRaisesRegex(AnkiConnectError, "offline"):
+            failing.search(text="word")
 
 
 if __name__ == "__main__":
