@@ -75,7 +75,7 @@ Testing starts in the early iterations: use local automated tests for applicatio
 - Show the exact item before each deletion.
 - Require an additional confirmation for deletions.
 
-## 09 - History and recovery
+## 09 - History and recovery *(completed)*
 
 **Goal:** track operations and make failures recoverable where possible.
 

@@ -11,6 +11,7 @@ from .ankiconnect import AnkiConnect
 from .duplicates import DuplicateChecker, DuplicateMatch
 from .preview import NoteChangePreview, NotePreview, PreviewService
 from .reader import NoteReader, NoteRecord
+from .history import MutationHistory
 
 
 class MutationError(Exception):
@@ -121,11 +122,13 @@ class NoteMutationService:
         anki: AnkiConnect,
         previews: PreviewService | None = None,
         duplicates: DuplicateChecker | None = None,
+        history: MutationHistory | None = None,
     ):
         self.anki = anki
         self.previews = previews or PreviewService(anki)
         self.duplicates = duplicates or DuplicateChecker(anki)
         self.reader = NoteReader(anki)
+        self.history = history
         self._pending: dict[str, _PendingOperation] = {}
         self._batches: dict[str, BatchProposal] = {}
         self._batch_status: dict[str, str] = {}
@@ -275,13 +278,19 @@ class NoteMutationService:
         proposal = OperationProposal(secrets.token_urlsafe(12), operation, preview)
         fingerprint = _fingerprint(operation, payload, preview)
         self._pending[proposal.proposal_id] = _PendingOperation(proposal, payload, fingerprint)
+        self._record(proposal, "proposed", request=payload, preview=asdict(preview))
         return proposal
+
+    def _record(self, proposal: OperationProposal, event: str, **details) -> None:
+        if self.history is not None:
+            self.history.record(proposal.proposal_id, event, operation=proposal.operation, **details)
 
     def cancel(self, proposal_id: str) -> None:
         pending = self._get_pending(proposal_id)
         if pending.status != "pending":
             raise MutationError(f"Proposal cannot be cancelled in state: {pending.status}")
         pending.status = "cancelled"
+        self._record(pending.proposal, "cancelled")
 
     def confirm(
         self,
@@ -296,14 +305,22 @@ class NoteMutationService:
             raise MutationError(f"Proposal cannot be applied in state: {pending.status}")
         if user_response.strip().casefold() != "approve":
             pending.status = "cancelled"
+            self._record(pending.proposal, "rejected")
             raise ApprovalRejectedError("No write was made; the proposal was cancelled.")
         if pending.proposal.operation == "delete" and delete_confirmation.strip() != f"DELETE {pending.payload['note_id']}":
+            self._record(pending.proposal, "deletion_confirmation_missing")
             raise ApprovalRejectedError(
                 f"Deletion requires a second confirmation: DELETE {pending.payload['note_id']}"
             )
 
-        self._verify_current_state(pending)
+        try:
+            self._verify_current_state(pending)
+        except StaleProposalError as exc:
+            self._record(pending.proposal, "stale", error=str(exc))
+            raise
+        self._record(pending.proposal, "approved")
         pending.status = "applying"
+        self._record(pending.proposal, "write_started")
         try:
             if pending.proposal.operation == "add":
                 note_id = self.anki._invoke_approved_write("addNote", note=pending.payload)
@@ -335,10 +352,12 @@ class NoteMutationService:
                 result = MutationResult(operation, note_id)
         except Exception as exc:
             pending.status = "outcome_unknown"
+            self._record(pending.proposal, "outcome_unknown", error=str(exc))
             raise MutationOutcomeUnknown(
                 "AnkiConnect did not confirm the write. Inspect the collection before retrying."
             ) from exc
         pending.status = "applied"
+        self._record(pending.proposal, "applied", note_id=result.note_id)
         return result
 
     def _verify_current_state(self, pending: _PendingOperation) -> None:

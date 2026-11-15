@@ -3,9 +3,9 @@
 An AI agent for managing an Anki collection (notes, decks, tags, and duplicates)
 through [AnkiConnect](https://ankiweb.net/shared/info/2055492159).
 
-**Status:** Step 8 — note creation, field updates, tag changes, deck moves, and
-deletions require a preview and explicit approval. Deletion also requires a
-second confirmation naming the note ID.
+**Status:** Step 9 — mutation proposals and outcomes can be recorded in a local
+append-only history. Incomplete and uncertain operations can be inspected;
+uncertain writes are never retried automatically.
 
 ## Requirements
 
@@ -63,6 +63,13 @@ Tag changes and moving a note to another deck use the same preview-and-approval
 flow. Deletion previews the exact note and requires `DELETE <note ID>` as a
 second confirmation. Deck creation and deck deletion are not supported.
 
+To enable history, pass `MutationHistory(LocalStorage("./collection_docs"))`
+to `NoteMutationService`. History files are written under `history/` and include
+the request and preview, approval decision, write status, and result. They may
+contain note content. `history.recovery_status()` reports proposals interrupted
+before a known result and operations whose write outcome is uncertain. It does
+not replay or undo operations; inspect Anki before resolving an uncertain write.
+
 The `AUTO` sections in generated files are refreshed on every run. The
 "Manual notes" section is preserved.
 
@@ -81,6 +88,7 @@ src/anki_agent/
   duplicates.py    exact, similar, and semantic candidate duplicate checks
   preview.py       read-only note and card previews
   mutations.py     preview-gated note creation and field updates
+  history.py      append-only mutation audit and recovery status
   storage.py       Storage interface and LocalStorage implementation
   docs_gen.py      note type and deck documentation generation
 test_run.py        smoke test

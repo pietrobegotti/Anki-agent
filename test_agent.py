@@ -25,6 +25,7 @@ from anki_agent.mutations import (
     UpdateNoteRequest,
 )
 from anki_agent.duplicates import DuplicateChecker
+from anki_agent.history import MutationHistory
 
 
 class FakeAnki:
@@ -740,6 +741,43 @@ class CollectionOperationTests(unittest.TestCase):
                 proposal.proposal_id, user_response="approve", delete_confirmation="DELETE 12"
             )
         self.assertEqual(self.anki.write_calls, [])
+
+
+class MutationHistoryTests(unittest.TestCase):
+    def test_records_request_preview_approval_and_result_for_inspection(self):
+        storage = FakeStorage()
+        history = MutationHistory(storage)
+        anki = FakeMutationAnki()
+        service = NoteMutationService(anki, history=history)
+        proposal = service.propose_add(
+            deck="Japanese", note_type="Basic", fields={"Front": "Question"}
+        )
+
+        self.assertIn('"event": "proposed"', history.read())
+        self.assertIn('"preview"', history.read())
+        self.assertEqual(history.recovery_status()["incomplete"], [proposal.proposal_id])
+        service.confirm(proposal.proposal_id, user_response="approve")
+        document = history.read()
+        self.assertIn("write_started", document)
+        self.assertIn('"event": "applied"', document)
+        self.assertIn('"note_id": 77', document)
+        self.assertEqual(history.recovery_status(), {"incomplete": [], "outcome_unknown": []})
+
+    def test_records_uncertain_interrupted_write_without_retry(self):
+        storage = FakeStorage()
+        history = MutationHistory(storage)
+        anki = FakeMutationAnki(fail_write=True)
+        service = NoteMutationService(anki, history=history)
+        proposal = service.propose_add(
+            deck="Japanese", note_type="Basic", fields={"Front": "Question"}
+        )
+
+        with self.assertRaises(MutationOutcomeUnknown):
+            service.confirm(proposal.proposal_id, user_response="approve")
+        self.assertIn('"event": "outcome_unknown"', history.read())
+        self.assertEqual(history.recovery_status()["outcome_unknown"], [proposal.proposal_id])
+        with self.assertRaises(MutationError):
+            service.confirm(proposal.proposal_id, user_response="approve")
 
 
 if __name__ == "__main__":
