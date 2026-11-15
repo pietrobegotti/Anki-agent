@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import patch
 
 from anki_agent import docs_gen
-from anki_agent.ankiconnect import AnkiConnectError
+from anki_agent.ankiconnect import AnkiConnect, AnkiConnectError
 from anki_agent.docs_gen import (
     build_note_type_auto,
     merge_with_manual,
@@ -13,6 +13,13 @@ from anki_agent.docs_gen import (
 )
 from anki_agent.reader import NoteReader, build_search_query
 from anki_agent.preview import PreviewService
+from anki_agent.mutations import (
+    ApprovalRejectedError,
+    MutationError,
+    MutationOutcomeUnknown,
+    NoteMutationService,
+    StaleProposalError,
+)
 
 
 class FakeAnki:
@@ -394,6 +401,157 @@ class NotePreviewTests(unittest.TestCase):
         self.assertTrue(any("JavaScript" in warning for warning in preview.warnings))
         with self.assertRaisesRegex(ValueError, "Unknown fields"):
             service.preview_new("Basic", {"Unknown": "value"})
+
+
+class FakeMutationAnki(FakePreviewAnki):
+    def __init__(self, *, notes=None, fail_write=False):
+        super().__init__(
+            ["Front", "Back"],
+            {"Forward": {"Front": "{{Front}}", "Back": "{{Back}}"}},
+            notes=notes,
+        )
+        self.decks = ["Japanese"]
+        self.available_models = ["Basic"]
+        self.write_calls = []
+        self.fail_write = fail_write
+
+    def deck_names(self):
+        return self.decks
+
+    def model_names(self):
+        return self.available_models
+
+    def _invoke_approved_write(self, action, **params):
+        self.write_calls.append((action, params))
+        if self.fail_write:
+            raise AnkiConnectError("connection dropped")
+        if action == "addNote":
+            return 77
+        return None
+
+
+class NoteMutationTests(unittest.TestCase):
+    def test_propose_add_does_not_write_and_explicit_approval_applies_it(self) -> None:
+        anki = FakeMutationAnki()
+        service = NoteMutationService(anki)
+        proposal = service.propose_add(
+            deck="Japanese", note_type="Basic", fields={"Front": "Question"}, tags=["daily"]
+        )
+
+        self.assertEqual(anki.write_calls, [])
+        self.assertEqual(proposal.preview.cards[0].front_html, "Question")
+        result = service.confirm(proposal.proposal_id, user_response="approve")
+
+        self.assertEqual(result.note_id, 77)
+        action, params = anki.write_calls[0]
+        self.assertEqual(action, "addNote")
+        self.assertEqual(params["note"]["deckName"], "Japanese")
+        self.assertEqual(params["note"]["fields"], {"Front": "Question", "Back": ""})
+        self.assertEqual(params["note"]["tags"], ["daily"])
+
+    def test_rejects_ambiguous_response_and_cancel_without_writing(self) -> None:
+        anki = FakeMutationAnki()
+        service = NoteMutationService(anki)
+        proposal = service.propose_add(
+            deck="Japanese", note_type="Basic", fields={"Front": "Question"}
+        )
+
+        with self.assertRaises(ApprovalRejectedError):
+            service.confirm(proposal.proposal_id, user_response="maybe")
+        with self.assertRaises(MutationError):
+            service.confirm(proposal.proposal_id, user_response="approve")
+        self.assertEqual(anki.write_calls, [])
+
+        another = service.propose_add(
+            deck="Japanese", note_type="Basic", fields={"Front": "Another"}
+        )
+        service.cancel(another.proposal_id)
+        self.assertEqual(anki.write_calls, [])
+
+    def test_stale_template_or_note_changes_require_a_new_preview(self) -> None:
+        anki = FakeMutationAnki()
+        service = NoteMutationService(anki)
+        add_proposal = service.propose_add(
+            deck="Japanese", note_type="Basic", fields={"Front": "Question"}
+        )
+        anki.css = ".card { color: blue; }"
+        with self.assertRaises(StaleProposalError):
+            service.confirm(add_proposal.proposal_id, user_response="approve")
+
+        anki.notes = [
+            {
+                "noteId": 9,
+                "modelName": "Basic",
+                "fields": {
+                    "Front": {"value": "Before", "order": 0},
+                    "Back": {"value": "Answer", "order": 1},
+                },
+                "tags": [],
+                "cards": [90],
+            }
+        ]
+        update_proposal = service.propose_update(9, {"Back": "New answer"})
+        anki.notes[0]["fields"]["Front"]["value"] = "Changed elsewhere"
+        with self.assertRaises(StaleProposalError):
+            service.confirm(update_proposal.proposal_id, user_response="approve")
+        self.assertEqual(anki.write_calls, [])
+
+    def test_modified_proposal_preview_is_rejected(self) -> None:
+        anki = FakeMutationAnki()
+        service = NoteMutationService(anki)
+        proposal = service.propose_add(
+            deck="Japanese", note_type="Basic", fields={"Front": "Question"}
+        )
+        proposal.preview.fields["Front"] = "Different preview"
+
+        with self.assertRaisesRegex(StaleProposalError, "preview was modified"):
+            service.confirm(proposal.proposal_id, user_response="approve")
+        self.assertEqual(anki.write_calls, [])
+
+    def test_propose_update_previews_before_after_and_writes_only_after_approval(self) -> None:
+        anki = FakeMutationAnki(
+            notes=[
+                {
+                    "noteId": 9,
+                    "modelName": "Basic",
+                    "fields": {
+                        "Front": {"value": "Question", "order": 0},
+                        "Back": {"value": "Old answer", "order": 1},
+                    },
+                    "tags": [],
+                    "cards": [90],
+                }
+            ]
+        )
+        service = NoteMutationService(anki)
+        proposal = service.propose_update(9, {"Back": "New answer"})
+
+        self.assertEqual(proposal.preview.changed_fields, ("Back",))
+        self.assertEqual(anki.write_calls, [])
+        result = service.confirm(proposal.proposal_id, user_response="approve")
+
+        self.assertEqual(result.note_id, 9)
+        self.assertEqual(
+            anki.write_calls[0],
+            ("updateNoteFields", {"note": {"id": 9, "fields": {"Back": "New answer"}}}),
+        )
+
+    def test_uncertain_write_cannot_be_retried_automatically(self) -> None:
+        anki = FakeMutationAnki(fail_write=True)
+        service = NoteMutationService(anki)
+        proposal = service.propose_add(
+            deck="Japanese", note_type="Basic", fields={"Front": "Question"}
+        )
+
+        with self.assertRaises(MutationOutcomeUnknown):
+            service.confirm(proposal.proposal_id, user_response="approve")
+        with self.assertRaises(MutationError):
+            service.confirm(proposal.proposal_id, user_response="approve")
+        self.assertEqual(len(anki.write_calls), 1)
+
+    def test_low_level_invoke_blocks_note_writes(self) -> None:
+        with self.assertRaisesRegex(AnkiConnectError, "explicit approval flow"):
+            AnkiConnect().invoke("addNote", note={})
 
 
 if __name__ == "__main__":

@@ -3,8 +3,8 @@
 An AI agent for managing an Anki collection (notes, decks, tags, and duplicates)
 through [AnkiConnect](https://ankiweb.net/shared/info/2055492159).
 
-**Status:** Step 5 — read-only card previews for proposed notes and edits,
-including front/back HTML, CSS, and Cloze variants. No changes are made to Anki.
+**Status:** Step 6 — note creation and field updates require a preview and
+explicit approval before Anki is changed.
 
 ## Requirements
 
@@ -47,6 +47,12 @@ notes = reader.search(text="趣味", deck="Japanese", limit=20)
 `PreviewService.preview_edit(note_id, updates)` returns before/after cards and
 the changed fields. Both are read-only and include CSS and rendering warnings.
 
+`NoteMutationService` creates a proposal containing that preview. Display it
+and get explicit user approval before calling `confirm(..., user_response="approve")`.
+The service rejects stale previews and blocks automatic retries when Anki's
+write outcome is uncertain. Direct write actions through `AnkiConnect.invoke`
+are blocked.
+
 The `AUTO` sections in generated files are refreshed on every run. The
 "Manual notes" section is preserved.
 
@@ -63,6 +69,7 @@ src/anki_agent/
   ankiconnect.py   minimal AnkiConnect client (standard library only)
   reader.py        bounded read-only note search and retrieval
   preview.py       read-only note and card previews
+  mutations.py     preview-gated note creation and field updates
   storage.py       Storage interface and LocalStorage implementation
   docs_gen.py      note type and deck documentation generation
 test_run.py        smoke test

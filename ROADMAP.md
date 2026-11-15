@@ -48,7 +48,7 @@ Testing starts in the early iterations: use local automated tests for applicatio
 - Highlight affected cards and fields.
 - Verify previews with simple and complex note types.
 
-## 06 - Approved creation and editing
+## 06 - Approved creation and editing *(completed)*
 
 **Goal:** apply note operations only after explicit approval.
 
