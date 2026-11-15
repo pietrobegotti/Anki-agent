@@ -57,7 +57,7 @@ Testing starts in the early iterations: use local automated tests for applicatio
 - Recheck the data immediately before writing.
 - Test cancellation, errors, and operation results.
 
-## 07 - Duplicates and multiple requests
+## 07 - Duplicates and multiple requests *(completed)*
 
 **Goal:** handle ambiguity and requests that result in multiple changes.
 

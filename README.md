@@ -3,8 +3,9 @@
 An AI agent for managing an Anki collection (notes, decks, tags, and duplicates)
 through [AnkiConnect](https://ankiweb.net/shared/info/2055492159).
 
-**Status:** Step 6 — note creation and field updates require a preview and
-explicit approval before Anki is changed.
+**Status:** Step 7 — duplicate review and batched note operations are supported.
+Creation and field updates require a preview and explicit approval before Anki
+is changed.
 
 ## Requirements
 
@@ -53,6 +54,11 @@ The service rejects stale previews and blocks automatic retries when Anki's
 write outcome is uncertain. Direct write actions through `AnkiConnect.invoke`
 are blocked.
 
+Before creating a note, `DuplicateChecker` searches for exact and similar notes.
+Possible matches require review; callers can pass an explicit keep-both choice
+after that review. Batch proposals combine add and update previews while each
+operation still requires its own approval or rejection.
+
 The `AUTO` sections in generated files are refreshed on every run. The
 "Manual notes" section is preserved.
 
@@ -68,6 +74,7 @@ uv run python test_agent.py
 src/anki_agent/
   ankiconnect.py   minimal AnkiConnect client (standard library only)
   reader.py        bounded read-only note search and retrieval
+  duplicates.py    exact, similar, and semantic candidate duplicate checks
   preview.py       read-only note and card previews
   mutations.py     preview-gated note creation and field updates
   storage.py       Storage interface and LocalStorage implementation
@@ -80,7 +87,8 @@ manifest.md        project requirements
 
 ## Roadmap
 
-- [ ] Write to Anki (add, edit, and delete notes)
-- [ ] Preview and approval before every operation
+- [x] Write approved note additions and field updates
+- [x] Preview and approval before every note operation
+- [x] Duplicate review and individually approved batches
 - [ ] `GoogleDriveStorage` with the same interface as `Storage`
 - [ ] ChatGPT integration

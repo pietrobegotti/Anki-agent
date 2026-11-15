@@ -14,12 +14,17 @@ from anki_agent.docs_gen import (
 from anki_agent.reader import NoteReader, build_search_query
 from anki_agent.preview import PreviewService
 from anki_agent.mutations import (
+    AddNoteRequest,
     ApprovalRejectedError,
+    BatchProposal,
+    DuplicateReviewRequired,
     MutationError,
     MutationOutcomeUnknown,
     NoteMutationService,
     StaleProposalError,
+    UpdateNoteRequest,
 )
+from anki_agent.duplicates import DuplicateChecker
 
 
 class FakeAnki:
@@ -421,6 +426,9 @@ class FakeMutationAnki(FakePreviewAnki):
     def model_names(self):
         return self.available_models
 
+    def find_notes(self, query):
+        return [note["noteId"] for note in self.notes]
+
     def _invoke_approved_write(self, action, **params):
         self.write_calls.append((action, params))
         if self.fail_write:
@@ -552,6 +560,133 @@ class NoteMutationTests(unittest.TestCase):
     def test_low_level_invoke_blocks_note_writes(self) -> None:
         with self.assertRaisesRegex(AnkiConnectError, "explicit approval flow"):
             AnkiConnect().invoke("addNote", note={})
+
+    def test_add_requires_duplicate_review_and_explicit_keep_both_choice(self) -> None:
+        anki = FakeMutationAnki(
+            notes=[
+                {
+                    "noteId": 5,
+                    "modelName": "Basic",
+                    "fields": {
+                        "Front": {"value": "Question", "order": 0},
+                        "Back": {"value": "Answer", "order": 1},
+                    },
+                    "tags": [],
+                    "cards": [50],
+                }
+            ]
+        )
+        service = NoteMutationService(anki)
+
+        with self.assertRaises(DuplicateReviewRequired) as raised:
+            service.propose_add(
+                deck="Japanese", note_type="Basic", fields={"Front": "Question", "Back": "Answer"}
+            )
+        self.assertEqual(raised.exception.matches[0].match_type, "exact")
+        self.assertEqual(anki.write_calls, [])
+
+        proposal = service.propose_add(
+            deck="Japanese",
+            note_type="Basic",
+            fields={"Front": "Question", "Back": "Answer"},
+            allow_possible_duplicates=True,
+        )
+        service.confirm(proposal.proposal_id, user_response="approve")
+        self.assertEqual(anki.write_calls[0][0], "addNote")
+
+    def test_batch_proposals_are_combined_and_approved_individually(self) -> None:
+        anki = FakeMutationAnki(
+            notes=[
+                {
+                    "noteId": 9,
+                    "modelName": "Basic",
+                    "fields": {
+                        "Front": {"value": "Existing question", "order": 0},
+                        "Back": {"value": "Existing answer", "order": 1},
+                    },
+                    "tags": [],
+                    "cards": [90],
+                }
+            ]
+        )
+        service = NoteMutationService(anki)
+        batch = service.propose_batch(
+            [
+                AddNoteRequest("Japanese", "Basic", {"Front": "Different question", "Back": "Answer"}),
+                UpdateNoteRequest(9, {"Back": "Updated answer"}),
+            ]
+        )
+
+        self.assertIsInstance(batch, BatchProposal)
+        self.assertEqual(len(batch.proposals), 2)
+        results = service.confirm_batch(
+            batch.batch_id,
+            {batch.proposals[0].proposal_id: "approve", batch.proposals[1].proposal_id: "reject"},
+        )
+
+        self.assertEqual([item.status for item in results.operations], ["applied", "rejected"])
+        self.assertEqual(len(anki.write_calls), 1)
+        self.assertEqual(anki.write_calls[0][0], "addNote")
+
+
+class DuplicateCheckerTests(unittest.TestCase):
+    def test_finds_exact_and_similar_candidates(self) -> None:
+        anki = FakeMutationAnki(
+            notes=[
+                {
+                    "noteId": 1,
+                    "modelName": "Basic",
+                    "fields": {
+                        "Front": {"value": "A yellow fox jumps", "order": 0},
+                        "Back": {"value": "quickly", "order": 1},
+                    },
+                    "tags": [],
+                    "cards": [10],
+                },
+                {
+                    "noteId": 2,
+                    "modelName": "Basic",
+                    "fields": {
+                        "Front": {"value": "A yellow fox jumped", "order": 0},
+                        "Back": {"value": "quickly", "order": 1},
+                    },
+                    "tags": [],
+                    "cards": [20],
+                },
+            ]
+        )
+
+        matches = DuplicateChecker(anki).find(
+            "Basic", {"Front": "A yellow fox jumps", "Back": "quickly"}
+        )
+
+        self.assertEqual([match.match_type for match in matches], ["exact", "similar"])
+        self.assertGreater(matches[1].score, 0.82)
+
+    def test_semantic_matcher_can_flag_candidate_for_user_review(self) -> None:
+        anki = FakeMutationAnki(
+            notes=[
+                {
+                    "noteId": 3,
+                    "modelName": "Basic",
+                    "fields": {
+                        "Front": {"value": "Unrelated wording", "order": 0},
+                        "Back": {"value": "Different explanation", "order": 1},
+                    },
+                    "tags": [],
+                    "cards": [30],
+                }
+            ]
+        )
+
+        matches = DuplicateChecker(
+            anki,
+            semantic_matcher=lambda proposed, existing: 0.91,
+        ).find("Basic", {"Front": "Another phrase", "Back": "Other wording"})
+
+        self.assertEqual(len(matches), 1)
+        self.assertEqual(matches[0].match_type, "semantic")
+        self.assertEqual(matches[0].score, 0.91)
 
 
 if __name__ == "__main__":

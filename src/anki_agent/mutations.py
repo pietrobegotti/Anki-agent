@@ -8,6 +8,7 @@ from dataclasses import asdict, dataclass
 from typing import Mapping
 
 from .ankiconnect import AnkiConnect
+from .duplicates import DuplicateChecker, DuplicateMatch
 from .preview import NoteChangePreview, NotePreview, PreviewService
 
 
@@ -27,6 +28,13 @@ class MutationOutcomeUnknown(MutationError):
     pass
 
 
+class DuplicateReviewRequired(MutationError):
+    def __init__(self, preview: NotePreview, matches: list[DuplicateMatch]):
+        super().__init__("Possible duplicates were found; review them before proposing a new note")
+        self.preview = preview
+        self.matches = tuple(matches)
+
+
 @dataclass(frozen=True)
 class OperationProposal:
     proposal_id: str
@@ -38,6 +46,40 @@ class OperationProposal:
 class MutationResult:
     operation: str
     note_id: int
+
+
+@dataclass(frozen=True)
+class AddNoteRequest:
+    deck: str
+    note_type: str
+    fields: Mapping[str, str]
+    tags: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class UpdateNoteRequest:
+    note_id: int
+    fields: Mapping[str, str]
+
+
+@dataclass(frozen=True)
+class BatchProposal:
+    batch_id: str
+    proposals: tuple[OperationProposal, ...]
+
+
+@dataclass(frozen=True)
+class BatchOperationResult:
+    proposal_id: str
+    status: str
+    result: MutationResult | None = None
+    error: str | None = None
+
+
+@dataclass(frozen=True)
+class BatchResult:
+    batch_id: str
+    operations: tuple[BatchOperationResult, ...]
 
 
 @dataclass
@@ -61,10 +103,18 @@ def _fingerprint(operation: str, payload: dict, preview: NotePreview | NoteChang
 class NoteMutationService:
     """Propose note writes, then apply them only after explicit approval."""
 
-    def __init__(self, anki: AnkiConnect, previews: PreviewService | None = None):
+    def __init__(
+        self,
+        anki: AnkiConnect,
+        previews: PreviewService | None = None,
+        duplicates: DuplicateChecker | None = None,
+    ):
         self.anki = anki
         self.previews = previews or PreviewService(anki)
+        self.duplicates = duplicates or DuplicateChecker(anki)
         self._pending: dict[str, _PendingOperation] = {}
+        self._batches: dict[str, BatchProposal] = {}
+        self._batch_status: dict[str, str] = {}
 
     def propose_add(
         self,
@@ -73,6 +123,8 @@ class NoteMutationService:
         note_type: str,
         fields: Mapping[str, str],
         tags: tuple[str, ...] | list[str] = (),
+        allow_possible_duplicates: bool = False,
+        semantic_candidate_ids: tuple[int, ...] | list[int] = (),
     ) -> OperationProposal:
         if deck not in self.anki.deck_names():
             raise ValueError(f"Unknown deck: {deck}")
@@ -80,6 +132,13 @@ class NoteMutationService:
             raise ValueError(f"Unknown note type: {note_type}")
         normalized_tags = tuple(dict.fromkeys(tag.strip() for tag in tags if tag.strip()))
         preview = self.previews.preview_new(note_type, fields, deck=deck, tags=normalized_tags)
+        duplicate_matches = self.duplicates.find(
+            note_type,
+            preview.fields,
+            semantic_candidate_ids=semantic_candidate_ids,
+        )
+        if duplicate_matches and not allow_possible_duplicates:
+            raise DuplicateReviewRequired(preview, duplicate_matches)
         payload = {
             "deckName": deck,
             "modelName": note_type,
@@ -94,6 +153,66 @@ class NoteMutationService:
         preview = self.previews.preview_edit(note_id, updates)
         payload = {"note_id": note_id, "fields": dict(updates)}
         return self._register("update", payload, preview)
+
+    def propose_batch(self, requests: list[AddNoteRequest | UpdateNoteRequest]) -> BatchProposal:
+        if not requests:
+            raise ValueError("A batch must contain at least one operation")
+        proposals: list[OperationProposal] = []
+        try:
+            for request in requests:
+                if isinstance(request, AddNoteRequest):
+                    proposal = self.propose_add(
+                        deck=request.deck,
+                        note_type=request.note_type,
+                        fields=request.fields,
+                        tags=request.tags,
+                    )
+                elif isinstance(request, UpdateNoteRequest):
+                    proposal = self.propose_update(request.note_id, request.fields)
+                else:
+                    raise TypeError(f"Unsupported batch request: {type(request).__name__}")
+                proposals.append(proposal)
+        except Exception:
+            for proposal in proposals:
+                self.cancel(proposal.proposal_id)
+            raise
+        batch = BatchProposal(secrets.token_urlsafe(12), tuple(proposals))
+        self._batches[batch.batch_id] = batch
+        self._batch_status[batch.batch_id] = "pending"
+        return batch
+
+    def confirm_batch(self, batch_id: str, decisions: Mapping[str, str]) -> BatchResult:
+        batch = self._batches.get(batch_id)
+        if batch is None:
+            raise MutationError("Batch proposal was not found")
+        if self._batch_status.get(batch_id) != "pending":
+            raise MutationError(f"Batch cannot be applied in state: {self._batch_status[batch_id]}")
+        self._batch_status[batch_id] = "applying"
+        results = []
+        for proposal in batch.proposals:
+            try:
+                result = self.confirm(
+                    proposal.proposal_id,
+                    user_response=decisions.get(proposal.proposal_id, ""),
+                )
+            except ApprovalRejectedError:
+                results.append(BatchOperationResult(proposal.proposal_id, "rejected"))
+            except Exception as exc:
+                results.append(BatchOperationResult(proposal.proposal_id, "failed", error=str(exc)))
+            else:
+                results.append(BatchOperationResult(proposal.proposal_id, "applied", result=result))
+        self._batch_status[batch_id] = "completed"
+        return BatchResult(batch_id, tuple(results))
+
+    def cancel_batch(self, batch_id: str) -> None:
+        batch = self._batches.get(batch_id)
+        if batch is None:
+            raise MutationError("Batch proposal was not found")
+        if self._batch_status.get(batch_id) != "pending":
+            raise MutationError(f"Batch cannot be cancelled in state: {self._batch_status[batch_id]}")
+        for proposal in batch.proposals:
+            self.cancel(proposal.proposal_id)
+        self._batch_status[batch_id] = "cancelled"
 
     def _register(
         self,
