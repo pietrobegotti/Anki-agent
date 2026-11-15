@@ -3,8 +3,8 @@
 An AI agent for managing an Anki collection (notes, decks, tags, and duplicates)
 through [AnkiConnect](https://ankiweb.net/shared/info/2055492159).
 
-**Status:** Step 4 — read-only note search and retrieval, plus collection
-conventions and note type structure documentation. No changes are made to Anki.
+**Status:** Step 5 — read-only card previews for proposed notes and edits,
+including front/back HTML, CSS, and Cloze variants. No changes are made to Anki.
 
 ## Requirements
 
@@ -43,13 +43,17 @@ reader = NoteReader(AnkiConnect())
 notes = reader.search(text="趣味", deck="Japanese", limit=20)
 ```
 
+`PreviewService.preview_new(...)` builds proposed cards, while
+`PreviewService.preview_edit(note_id, updates)` returns before/after cards and
+the changed fields. Both are read-only and include CSS and rendering warnings.
+
 The `AUTO` sections in generated files are refreshed on every run. The
 "Manual notes" section is preserved.
 
 Run the local documentation tests with:
 
 ```powershell
-uv run python test_docs_gen.py
+uv run python test_agent.py
 ```
 
 ## Project structure
@@ -58,10 +62,11 @@ uv run python test_docs_gen.py
 src/anki_agent/
   ankiconnect.py   minimal AnkiConnect client (standard library only)
   reader.py        bounded read-only note search and retrieval
+  preview.py       read-only note and card previews
   storage.py       Storage interface and LocalStorage implementation
   docs_gen.py      note type and deck documentation generation
 test_run.py        smoke test
-test_docs_gen.py   automated tests using simulated Anki responses
+test_agent.py      automated tests using simulated Anki responses
 ROADMAP.md         project roadmap
 manifest.md        project requirements
 ```

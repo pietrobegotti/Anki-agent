@@ -39,7 +39,7 @@ Testing starts in the early iterations: use local automated tests for applicatio
 - Return clear results limited to the request.
 - Test queries, empty results, and connection errors.
 
-## 05 - Operation previews
+## 05 - Operation previews *(completed)*
 
 **Goal:** show the effect of creating or editing a note before applying it.
 

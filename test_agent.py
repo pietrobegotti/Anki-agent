@@ -12,6 +12,7 @@ from anki_agent.docs_gen import (
     refresh_deck_docs,
 )
 from anki_agent.reader import NoteReader, build_search_query
+from anki_agent.preview import PreviewService
 
 
 class FakeAnki:
@@ -286,6 +287,113 @@ class NoteReaderTests(unittest.TestCase):
         failing = NoteReader(FakeReaderAnki([], error=AnkiConnectError("offline")))
         with self.assertRaisesRegex(AnkiConnectError, "offline"):
             failing.search(text="word")
+
+
+class FakePreviewAnki:
+    def __init__(self, fields, templates, *, notes=None, css=".card { color: black; }"):
+        self.fields = fields
+        self.templates = templates
+        self.notes = notes or []
+        self.css = css
+
+    def model_field_names(self, note_type):
+        return self.fields
+
+    def model_templates(self, note_type):
+        return self.templates
+
+    def model_styling(self, note_type):
+        return self.css
+
+    def notes_info(self, note_ids):
+        return [note for note in self.notes if note["noteId"] in note_ids]
+
+
+class NotePreviewTests(unittest.TestCase):
+    def test_renders_fields_frontside_and_css(self) -> None:
+        anki = FakePreviewAnki(
+            ["Front", "Back"],
+            {"Forward": {"Front": "<b>{{Front}}</b>", "Back": "{{FrontSide}}<hr>{{Back}}"}},
+        )
+
+        preview = PreviewService(anki).preview_new(
+            "Basic", {"Front": "Question", "Back": "Answer"}, deck="Japanese", tags=["daily"]
+        )
+
+        self.assertEqual(len(preview.cards), 1)
+        self.assertEqual(preview.cards[0].front_html, "<b>Question</b>")
+        self.assertEqual(preview.cards[0].back_html, "<b>Question</b><hr>Answer")
+        self.assertEqual(preview.css, ".card { color: black; }")
+
+    def test_renders_nested_conditionals_and_text_filter(self) -> None:
+        anki = FakePreviewAnki(
+            ["Hint", "Back"],
+            {
+                "Forward": {
+                    "Front": "{{#Hint}}<i>{{text:Hint}}{{#Back}}<b>{{Back}}</b>{{/Back}}</i>{{/Hint}}{{^Back}}<b>Missing</b>{{/Back}}",
+                    "Back": "{{Back}}",
+                }
+            },
+        )
+
+        preview = PreviewService(anki).preview_new(
+            "Basic", {"Hint": "<b>clue</b>", "Back": "answer"}
+        )
+
+        self.assertEqual(preview.cards[0].front_html, "<i>clue<b>answer</b></i>")
+
+    def test_renders_each_cloze_variant_with_front_hint_and_answer(self) -> None:
+        anki = FakePreviewAnki(
+            ["Text"],
+            {"Cloze": {"Front": "{{cloze:Text}}", "Back": "{{FrontSide}}<hr>{{cloze:Text}}"}},
+        )
+
+        preview = PreviewService(anki).preview_new(
+            "Cloze model", {"Text": "Capital {{c1::Paris::city}} of {{c2::France}}"}
+        )
+
+        self.assertEqual([card.deletion_index for card in preview.cards], [1, 2])
+        self.assertIn("[city]", preview.cards[0].front_html)
+        self.assertIn("France", preview.cards[0].front_html)
+        self.assertIn(">Paris</span>", preview.cards[0].back_html)
+        self.assertIn("[…]", preview.cards[1].front_html)
+
+    def test_edit_preview_shows_before_after_and_changed_fields(self) -> None:
+        anki = FakePreviewAnki(
+            ["Front", "Back"],
+            {"Forward": {"Front": "{{Front}}", "Back": "{{Back}}"}},
+            notes=[
+                {
+                    "noteId": 42,
+                    "modelName": "Basic",
+                    "fields": {
+                        "Front": {"value": "Old question", "order": 0},
+                        "Back": {"value": "Answer", "order": 1},
+                    },
+                    "tags": ["daily"],
+                    "cards": [420],
+                }
+            ],
+        )
+
+        preview = PreviewService(anki).preview_edit(42, {"Front": "New question"})
+
+        self.assertEqual(preview.changed_fields, ("Front",))
+        self.assertEqual(preview.before.cards[0].front_html, "Old question")
+        self.assertEqual(preview.after.cards[0].front_html, "New question")
+
+    def test_warns_for_script_templates_and_validates_note_fields(self) -> None:
+        anki = FakePreviewAnki(
+            ["Front"],
+            {"Card": {"Front": "{{Front}}<script>run()</script>", "Back": ""}},
+        )
+        service = PreviewService(anki)
+
+        preview = service.preview_new("Basic", {"Front": "Question"})
+
+        self.assertTrue(any("JavaScript" in warning for warning in preview.warnings))
+        with self.assertRaisesRegex(ValueError, "Unknown fields"):
+            service.preview_new("Basic", {"Unknown": "value"})
 
 
 if __name__ == "__main__":
