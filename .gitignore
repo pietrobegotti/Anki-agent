@@ -19,3 +19,7 @@ config.local.*
 .DS_Store
 .idea/
 .vscode/
+
+# Contenuti locali di documentazione e test
+/docs/**
+/tests/**
