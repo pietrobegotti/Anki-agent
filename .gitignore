@@ -1,4 +1,4 @@
-# Documentazione generata dalla collezione personale (dati privati)
+# Generated personal collection documentation (private data)
 collection_docs/
 
 # Python
@@ -11,7 +11,7 @@ build/
 dist/
 .pytest_cache/
 
-# Segreti / config locale
+# Secrets and local configuration
 .env
 config.local.*
 
@@ -20,6 +20,6 @@ config.local.*
 .idea/
 .vscode/
 
-# Contenuti locali di documentazione e test
+# Local documentation and test-folder contents
 /docs/**
 /tests/**

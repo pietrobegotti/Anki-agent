@@ -29,6 +29,7 @@ from anki_agent.mutations import (
 from anki_agent.duplicates import DuplicateChecker
 from anki_agent.history import MutationHistory
 from anki_agent.remote import RemoteGateway, RemoteUserContext
+from anki_agent.config import AgentConfig
 
 
 class FakeAnki:
@@ -834,6 +835,37 @@ class RemoteGatewayTests(unittest.TestCase):
         status, payload = call_app("https")
         self.assertEqual(status, "200 OK")
         self.assertEqual(payload["decks"], ["Japanese"])
+
+
+class ConfigurationTests(unittest.TestCase):
+    def test_reads_connection_settings_and_separates_user_storage(self):
+        first = AgentConfig.from_env({
+            "ANKI_CONNECT_URL": "http://127.0.0.1:8766",
+            "ANKI_CONNECT_API_KEY": "secret-value",
+            "ANKI_CONNECT_TIMEOUT": "22",
+            "ANKI_AGENT_DATA_DIR": "C:/anki-data",
+            "ANKI_AGENT_USER_ID": "alice",
+        })
+        second = AgentConfig.from_env({
+            "ANKI_AGENT_DATA_DIR": "C:/anki-data",
+            "ANKI_AGENT_USER_ID": "bob",
+        })
+
+        self.assertEqual(first.create_anki().url, "http://127.0.0.1:8766")
+        self.assertEqual(first.create_anki().api_key, "secret-value")
+        self.assertEqual(first.create_anki().timeout, 22)
+        self.assertNotEqual(first.storage_root, second.storage_root)
+        self.assertEqual(second.anki_url, "http://127.0.0.1:8765")
+
+    def test_rejects_invalid_configuration_and_unsafe_user_path(self):
+        for settings in (
+            {"ANKI_CONNECT_URL": "ftp://localhost"},
+            {"ANKI_CONNECT_TIMEOUT": "zero"},
+            {"ANKI_CONNECT_TIMEOUT": "0"},
+            {"ANKI_AGENT_USER_ID": "../private"},
+        ):
+            with self.subTest(settings=settings), self.assertRaises(ValueError):
+                AgentConfig.from_env(settings)
 
 
 if __name__ == "__main__":

@@ -3,13 +3,12 @@
 An AI agent for managing an Anki collection (notes, decks, tags, and duplicates)
 through [AnkiConnect](https://ankiweb.net/shared/info/2055492159).
 
-**Status:** Step 10 — a tenant-isolated, bearer-authenticated JSON API exposes
-collection search and preview-gated mutations for a remote ChatGPT connector.
-The API requires HTTPS and keeps each user's Anki services separate.
+**Status:** Step 11 — connection settings, per-user documentation storage,
+installation, troubleshooting, and a remote API contract are provided.
 
 ## Requirements
 
-- Python 3.9+
+- Python 3.10+
 - Anki Desktop running with the AnkiConnect add-on (code `2055492159`)
 
 ## Installation
@@ -18,14 +17,29 @@ The API requires HTTPS and keeps each user's Anki services separate.
 uv sync
 ```
 
+Python 3.10 or newer is required. Set optional configuration in the process
+environment; the program does not load `.env` files:
+
+```powershell
+$env:ANKI_CONNECT_URL = "http://127.0.0.1:8765"
+$env:ANKI_CONNECT_API_KEY = "your-local-anki-connect-key"
+$env:ANKI_CONNECT_TIMEOUT = "15"
+$env:ANKI_AGENT_DATA_DIR = ".\collection_docs"
+$env:ANKI_AGENT_USER_ID = "default"
+```
+
+The URL, timeout, and data directory have defaults. Keep API keys in a secret
+manager or process environment, not in committed files. Each user gets a
+separate `<data directory>/<user ID>/` for documentation and history.
+
 ## First run
 
 ```powershell
-uv run python test_run.py
+uv run anki-agent smoke
 ```
 
-The script prints the AnkiConnect version, decks, and note types, then generates
-documentation in `collection_docs/`. Note type documents include field usage,
+The command prints the AnkiConnect version, decks, and note types, then generates
+documentation in `collection_docs/<user ID>/`. Note type documents include field usage,
 front/back templates, CSS, and generated Cloze cards. This folder is ignored by
 Git because it contains data from your personal collection. The script also
 creates convention and preference guides if they do not exist; it preserves
@@ -96,17 +110,35 @@ Run the local documentation tests with:
 uv run python test_agent.py
 ```
 
+## Troubleshooting
+
+- **Connection refused:** start Anki Desktop, confirm AnkiConnect is installed,
+  and check `ANKI_CONNECT_URL` and the configured port.
+- **Unauthorized AnkiConnect response:** check the local API key in
+  `ANKI_CONNECT_API_KEY`.
+- **No generated files:** check write access to `ANKI_AGENT_DATA_DIR` and the
+  selected `ANKI_AGENT_USER_ID` subfolder.
+- **Remote API rejects a request:** use HTTPS, send `Authorization: Bearer …`,
+  and verify that the token maps to the intended user's isolated services.
+
+A clean-install check is `uv sync --locked` followed by the offline test
+command. The smoke command requires Anki Desktop and AnkiConnect. Remote
+deployment additionally requires a production WSGI server, HTTPS ingress, and
+a ChatGPT Action configured from `openapi.yaml`.
+
 ## Project structure
 
 ```
 src/anki_agent/
+  config.py        environment-based connection and per-user storage settings
+  cli.py           local smoke-test command line
   ankiconnect.py   minimal AnkiConnect client (standard library only)
   reader.py        bounded read-only note search and retrieval
   duplicates.py    exact, similar, and semantic candidate duplicate checks
   preview.py       read-only note and card previews
   mutations.py     preview-gated note creation and field updates
-  history.py      append-only mutation audit and recovery status
-  remote.py       authenticated tenant-isolated WSGI API
+  history.py       append-only mutation audit and recovery status
+  remote.py        authenticated tenant-isolated WSGI API
   storage.py       Storage interface and LocalStorage implementation
   docs_gen.py      note type and deck documentation generation
 test_run.py        smoke test

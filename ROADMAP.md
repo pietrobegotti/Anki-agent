@@ -96,7 +96,7 @@ Testing starts in the early iterations: use local automated tests for applicatio
 The repository provides the authenticated HTTPS-only WSGI API and OpenAPI
 contract. Public hosting and ChatGPT account configuration are deployment tasks.
 
-## 11 - Distribution and polish
+## 11 - Distribution and polish *(completed)*
 
 **Goal:** prepare the project for different configurations and collections.
 

@@ -1,1 +1,1 @@
-"""Anki Agent — step 1: sola lettura + documentazione locale."""
+"""Anki Agent for safely managing an Anki collection."""
