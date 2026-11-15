@@ -3,8 +3,8 @@
 An AI agent for managing an Anki collection (notes, decks, tags, and duplicates)
 through [AnkiConnect](https://ankiweb.net/shared/info/2055492159).
 
-**Status:** Step 1 — read-only access and Markdown documentation generation
-for the collection (note types and decks). No changes are made to Anki.
+**Status:** Step 2 — read-only note type structure documentation, including
+fields, card templates, CSS, and Cloze card variants. No changes are made to Anki.
 
 ## Requirements
 
@@ -24,11 +24,18 @@ uv run python test_run.py
 ```
 
 The script prints the AnkiConnect version, decks, and note types, then generates
-documentation in `collection_docs/`. This folder is ignored by Git because it
-contains data from your personal collection.
+documentation in `collection_docs/`. Note type documents include field usage,
+front/back templates, CSS, and generated Cloze cards. This folder is ignored by
+Git because it contains data from your personal collection.
 
 The `AUTO` sections in generated files are refreshed on every run. The
 "Manual notes" section is preserved.
+
+Run the local documentation tests with:
+
+```powershell
+uv run python test_docs_gen.py
+```
 
 ## Project structure
 
@@ -38,6 +45,7 @@ src/anki_agent/
   storage.py       Storage interface and LocalStorage implementation
   docs_gen.py      note type and deck documentation generation
 test_run.py        smoke test
+test_docs_gen.py   automated tests using simulated Anki responses
 ROADMAP.md         project roadmap
 manifest.md        project requirements
 ```

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "anki-agent"
 version = "0.1.0"
-description = "Agente AI per gestire una collezione Anki tramite AnkiConnect"
+description = "AI agent for managing an Anki collection through AnkiConnect"
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = []

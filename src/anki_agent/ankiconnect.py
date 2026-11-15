@@ -38,7 +38,7 @@ class AnkiConnect:
             raise AnkiConnectError(f"{action}: {data['error']}")
         return data.get("result")
 
-    # --- lettura ---
+    # --- read actions ---
     def version(self) -> int:
         return self.invoke("version")
 
