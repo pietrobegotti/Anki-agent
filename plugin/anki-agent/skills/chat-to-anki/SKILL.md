@@ -19,8 +19,9 @@ description: Use when the user wants to collect, prepare, review, or upload Anki
 1. Call `get_collection` to learn available decks and note types.
 2. Reuse a deck and note type explicitly chosen by the user earlier in the conversation when they still exist.
 3. If the user has not selected them, use a clearly established choice from the conversation. Otherwise ask for the destination deck and note type before preparing the upload.
-4. Never invent field names or silently map content into unknown note types. If required field structure is not available from tools or prior confirmed context, ask the user for the missing mapping.
-5. Preserve the user's language and corrections. Make concise, atomic cards; do not add facts that were not discussed or reliably implied.
+4. Call `inspect_note_type` for the selected note type. Use its field names and templates to understand the card structure and fill only supported fields.
+5. Never invent field names or silently map content into unknown note types. If a field's meaning is unclear from its name, templates, or prior confirmed context, ask the user for the missing mapping.
+6. Preserve the user's language and corrections. Make concise, atomic cards; do not add facts that were not discussed or reliably implied.
 
 ## Prepare and review a batch
 

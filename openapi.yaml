@@ -17,6 +17,23 @@ paths:
       responses:
         '200': {description: Collection inventory}
         '401': {description: Missing or invalid token}
+  /v1/note-types/inspect:
+    post:
+      operationId: inspectNoteType
+      summary: Inspect fields and card templates for one note type
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [note_type]
+              properties:
+                note_type: {type: string}
+      responses:
+        '200': {description: Note type field names and card templates}
+        '400': {description: Unknown note type}
+        '401': {description: Missing or invalid token}
   /v1/notes/search:
     post:
       operationId: searchNotes

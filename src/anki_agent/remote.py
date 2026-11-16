@@ -74,6 +74,16 @@ class RemoteGateway:
             if method == "GET" and path == "/v1/collection":
                 anki = user.mutations.anki
                 return 200, {"decks": anki.deck_names(), "note_types": anki.model_names()}
+            if method == "POST" and path == "/v1/note-types/inspect":
+                note_type = body["note_type"]
+                anki = user.mutations.anki
+                if note_type not in anki.model_names():
+                    raise ValueError(f"Unknown note type: {note_type}")
+                return 200, {
+                    "note_type": note_type,
+                    "fields": anki.model_field_names(note_type),
+                    "templates": anki.model_templates(note_type),
+                }
             if method == "POST" and path == "/v1/notes/search":
                 notes = user.reader.search(
                     text=body.get("text"), deck=body.get("deck"),

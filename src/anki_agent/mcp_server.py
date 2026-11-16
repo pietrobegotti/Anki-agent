@@ -29,6 +29,11 @@ def create_mcp_server(gateway: RemoteGateway) -> MCPServer:
         return dispatch(ctx, "GET", "/v1/collection")
 
     @server.tool()
+    def inspect_note_type(ctx: Context, note_type: str) -> dict[str, Any]:
+        """Return a note type's actual fields and card templates."""
+        return dispatch(ctx, "POST", "/v1/note-types/inspect", {"note_type": note_type})
+
+    @server.tool()
     def search_notes(
         ctx: Context,
         text: str | None = None,
