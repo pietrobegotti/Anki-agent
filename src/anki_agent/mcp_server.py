@@ -67,7 +67,7 @@ def create_mcp_server(gateway: RemoteGateway) -> MCPServer:
     def confirm_add_batch(
         ctx: Context, batch_id: str, decisions: dict[str, str]
     ) -> dict[str, Any]:
-        """Apply only the individually approved notes from a previously previewed batch."""
+        """Apply approved notes and sync the changed local collection to AnkiWeb."""
         return dispatch(ctx, "POST", f"/v1/batches/{batch_id}/confirm", {"decisions": decisions})
 
     @server.tool()

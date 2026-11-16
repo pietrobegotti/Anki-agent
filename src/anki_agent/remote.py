@@ -191,7 +191,17 @@ class RemoteGateway:
                 if not isinstance(decisions, dict):
                     raise ValueError("decisions must be an object keyed by proposal ID")
                 result = user.mutations.confirm_batch(batch_id, decisions)
-                return 200, asdict(result)
+                response = asdict(result)
+                if any(operation.status == "applied" for operation in result.operations):
+                    try:
+                        user.mutations.anki.sync_with_ankiweb()
+                    except Exception as exc:
+                        response["ankiweb_sync"] = {"status": "failed", "error": str(exc)}
+                    else:
+                        response["ankiweb_sync"] = {"status": "completed"}
+                else:
+                    response["ankiweb_sync"] = {"status": "not_needed"}
+                return 200, response
             if method == "POST" and path.startswith("/v1/batches/") and path.endswith("/cancel"):
                 batch_id = path.removeprefix("/v1/batches/").removesuffix("/cancel").strip("/")
                 user.mutations.cancel_batch(batch_id)

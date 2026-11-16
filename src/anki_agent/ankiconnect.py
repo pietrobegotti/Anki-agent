@@ -104,3 +104,7 @@ class AnkiConnect:
 
     def cards_info(self, card_ids: list[int]) -> list[dict]:
         return self.invoke("cardsInfo", cards=card_ids)
+
+    def sync_with_ankiweb(self) -> None:
+        """Ask the running Anki Desktop client to sync its local collection."""
+        self.invoke("sync")

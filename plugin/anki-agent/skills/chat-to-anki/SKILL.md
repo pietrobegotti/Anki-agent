@@ -33,7 +33,7 @@ description: Use when the user wants to collect, prepare, review, or upload Anki
 4. If the response is a duplicate conflict, use its `request_index` to identify the affected draft. Show the returned match and preview to the user. Do not retry that card with `allow_possible_duplicates: true` unless the user explicitly chooses to keep both. For the other cards, prepare a revised batch that leaves the unresolved draft out, if the user wants to proceed.
 5. Show the user the preview for each proposal, including all generated cards and their front and back. Ask for any corrections before confirmation.
 6. Map the user's explicit decision for each shown proposal ID to `approve` or `reject` and call `confirm_add_batch` once. Do not infer approval from the request to prepare a preview. Treat omitted decisions as rejection.
-7. Report the per-card outcome returned by the tool. If an outcome is failed or uncertain, do not automatically retry it; explain which note needs inspection first.
+7. Report the per-card outcome returned by the tool and the `ankiweb_sync` status. The sync runs only after at least one note was applied. If it failed, explain that the cards are in the local Anki collection but may not yet appear on other devices; do not retry note creation.
 
 ## Safety rules
 

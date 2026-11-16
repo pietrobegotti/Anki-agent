@@ -124,6 +124,12 @@ can construct a `RemoteGateway` and register one isolated context per token.
 The project does not provision a host, TLS certificate, identity provider, or
 plugin account configuration.
 
+After a batch confirmation applies at least one note, the MCP workflow asks
+AnkiConnect to run its `sync` action so the local collection is synchronized
+with AnkiWeb. The response reports whether that sync completed. Anki Desktop
+must be running, and the phone still needs to sync with AnkiWeb to receive the
+cards.
+
 The `AUTO` sections in generated files are refreshed on every run. The
 "Manual notes" section is preserved.
 

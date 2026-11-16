@@ -162,7 +162,7 @@ paths:
                     enum: [approve, reject]
                   description: Map each returned proposal_id to approve or reject.
       responses:
-        '200': {description: Per-note applied, rejected, or failed results}
+        '200': {description: Per-note results and AnkiWeb sync status after any applied note}
         '401': {description: Missing or invalid token}
         '409': {description: Batch is unknown, stale, or already processed}
   /v1/batches/{batch_id}/cancel:

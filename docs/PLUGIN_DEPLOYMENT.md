@@ -67,11 +67,15 @@ required; do not install a package containing a placeholder URL.
    `search_notes`, `propose_add_batch`, `confirm_add_batch`, and
    `cancel_add_batch`.
 4. Open a new chat with the plugin enabled. Discuss or collect cards, request an
-   upload, review the preview, and approve the intended notes.
+   upload, review the preview, and approve the intended notes. After at least
+   one note is added, the plugin asks AnkiConnect to sync the collection with
+   AnkiWeb and reports the sync result.
 
 The tool being visible is not enough to establish that Anki is reachable. Do a
 real read-only collection lookup before using write proposals. The first real
 write must be an explicitly approved proposal whose result is checked in Anki.
+To see the new cards on a phone, sync the phone with the same AnkiWeb account
+after the desktop sync completes.
 
 ## Operational requirements
 
