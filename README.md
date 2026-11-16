@@ -104,6 +104,26 @@ AnkiConnect bound to loopback on the machine that owns the collection. The
 repository provides the secured API and contract, but does not deploy a public
 endpoint or configure a ChatGPT account.
 
+### MCP server for a plugin
+
+The project also provides an MCP Streamable HTTP adapter with tools for
+collection lookup, note search, batch-add previews, individual batch decisions,
+and batch cancellation. Install dependencies with `uv sync --locked`, set the
+usual `ANKI_CONNECT_*` and `ANKI_AGENT_*` configuration, and provide a bearer
+token of at least 32 characters in `ANKI_AGENT_BEARER_TOKEN`. Start it with:
+
+```powershell
+uv run anki-agent-mcp --host 127.0.0.1 --port 8000
+```
+
+Put the MCP server behind an HTTPS reverse proxy before connecting a remote
+plugin. Keep the MCP endpoint private to authenticated requests and keep
+AnkiConnect bound to loopback on the machine that owns the collection. The
+default launcher registers one user context; deployments with multiple users
+can construct a `RemoteGateway` and register one isolated context per token.
+The project does not provision a host, TLS certificate, identity provider, or
+plugin account configuration.
+
 The `AUTO` sections in generated files are refreshed on every run. The
 "Manual notes" section is preserved.
 
@@ -142,6 +162,7 @@ src/anki_agent/
   mutations.py     preview-gated note creation and field updates
   history.py       append-only mutation audit and recovery status
   remote.py        authenticated tenant-isolated WSGI API
+  mcp_server.py    MCP Streamable HTTP adapter for remote chat tools
   storage.py       Storage interface and LocalStorage implementation
   docs_gen.py      note type and deck documentation generation
 test_run.py        smoke test
