@@ -210,7 +210,6 @@ class PreviewService:
         css = self.anki.model_styling(note_type)
         tag_list = tuple(tags)
         cloze_fields = _cloze_fields(templates)
-        deletion_indices = _cloze_indices(fields, cloze_fields)
         warnings: set[str] = set()
         cards: list[CardPreview] = []
 
@@ -223,7 +222,13 @@ class PreviewService:
         for card_name, sides in templates.items():
             front_template = sides.get("Front", sides.get("front", ""))
             back_template = sides.get("Back", sides.get("back", ""))
-            is_cloze_card = any(CLOZE_FIELD_PATTERN.search(part) for part in (front_template, back_template))
+            card_cloze_fields = sorted({
+                match.strip()
+                for part in (front_template, back_template)
+                for match in CLOZE_FIELD_PATTERN.findall(part)
+            })
+            is_cloze_card = bool(card_cloze_fields)
+            deletion_indices = _cloze_indices(fields, card_cloze_fields)
             card_deletions: list[int | None] = deletion_indices if is_cloze_card else [None]
             for deletion_index in card_deletions:
                 context = {**context_base, "Card": card_name}

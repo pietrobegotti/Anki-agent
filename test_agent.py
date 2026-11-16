@@ -66,6 +66,9 @@ class FakeAnki:
     def deck_names(self) -> list[str]:
         return self.decks
 
+    def model_names(self) -> list[str]:
+        return []
+
     def notes_info(self, note_ids: list[int]) -> list[dict]:
         self.notes_info_calls.append(note_ids)
         return [self.notes[note_id] for note_id in note_ids]

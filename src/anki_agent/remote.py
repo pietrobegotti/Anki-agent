@@ -3,22 +3,32 @@ from __future__ import annotations
 
 import hmac
 import json
+import re
 from dataclasses import asdict
 from typing import Any, Callable
 
 from .mutations import DuplicateReviewRequired, NoteMutationService
 from .reader import NoteReader
+from .config import AgentConfig
+from .history import MutationHistory
+from .storage import LocalStorage
 
 
 class RemoteUserContext:
     """An authenticated user's isolated Anki and mutation services."""
 
     def __init__(self, user_id: str, reader: NoteReader, mutations: NoteMutationService):
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", user_id):
+            raise ValueError("User ID may contain only letters, numbers, _ and -")
         if reader.anki is not mutations.anki:
             raise ValueError("Reader and mutation service must target the same Anki user collection")
         self.user_id = user_id
         self.reader = reader
         self.mutations = mutations
+        if mutations._uses_default_history:
+            config = AgentConfig.from_env()
+            mutations.history = MutationHistory(LocalStorage(config.data_dir / user_id))
+            mutations._uses_default_history = False
 
 
 class RemoteGateway:
@@ -36,6 +46,8 @@ class RemoteGateway:
             raise ValueError("User ID is already registered")
         if any(existing.mutations is context.mutations for _, existing in self._users):
             raise ValueError("Each user must have an isolated mutation service")
+        if any(existing.mutations.anki is context.mutations.anki for _, existing in self._users):
+            raise ValueError("Each user must have an isolated Anki connection")
         for _, existing in self._users:
             old_history = existing.mutations.history
             new_history = context.mutations.history

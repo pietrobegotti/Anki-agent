@@ -68,21 +68,24 @@ The service rejects stale previews and blocks automatic retries when Anki's
 write outcome is uncertain. Direct write actions through `AnkiConnect.invoke`
 are blocked.
 
-Before creating a note, `DuplicateChecker` searches for exact and similar notes.
-Possible matches require review; callers can pass an explicit keep-both choice
-after that review. Batch proposals combine add and update previews while each
-operation still requires its own approval or rejection.
+Before creating a note, `DuplicateChecker` searches bounded candidates for exact
+and similar matches. Semantic matching is available only when a semantic
+matcher or candidate IDs are supplied by the caller. Possible matches require
+review; callers can pass an explicit keep-both choice after that review. Batch
+proposals combine add and update previews while each operation still requires
+its own approval or rejection.
 
 Tag changes and moving a note to another deck use the same preview-and-approval
 flow. Deletion previews the exact note and requires `DELETE <note ID>` as a
 second confirmation. Deck creation and deck deletion are not supported.
 
-To enable history, pass `MutationHistory(LocalStorage("./collection_docs"))`
-to `NoteMutationService`. History files are written under `history/` and include
-the request and preview, approval decision, write status, and result. They may
-contain note content. `history.recovery_status()` reports proposals interrupted
-before a known result and operations whose write outcome is uncertain. It does
-not replay or undo operations; inspect Anki before resolving an uncertain write.
+`NoteMutationService` writes operation history by default under
+`<data directory>/<user ID>/history/`. A custom `MutationHistory` can be passed
+when constructing the service. History includes the request and preview,
+approval decision, write status, and result; it may contain note content.
+`history.recovery_status()` reports proposals interrupted before a known result
+and operations whose write outcome is uncertain. It does not replay or undo
+operations; inspect Anki before resolving an uncertain write.
 
 ## Remote ChatGPT connector
 

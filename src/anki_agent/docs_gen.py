@@ -12,6 +12,7 @@ from collections.abc import Iterator
 from typing import Any
 
 from .ankiconnect import AnkiConnect
+from .reader import build_search_query
 from .storage import Storage, log_line
 
 AUTO_START = "<!-- AUTO:START (automatically generated, do not edit) -->"
@@ -105,7 +106,7 @@ def build_note_type_auto(ac: AnkiConnect, model: str) -> str:
     fields = ac.model_field_names(model)
     templates = ac.model_templates(model)
     css = ac.model_styling(model)
-    note_ids = ac.find_notes(f'"note:{model}"')
+    note_ids = ac.find_notes(build_search_query(note_type=model))
     cloze_fields = _cloze_fields(templates)
     cloze = bool(cloze_fields)
     cloze_sample = None
@@ -196,10 +197,17 @@ def refresh_note_type_docs(ac: AnkiConnect, storage: Storage, only: str | None =
 
 
 def _build_deck_auto(ac: AnkiConnect, deck: str) -> str:
-    note_count = len(ac.find_notes(f'"deck:{deck}"'))
+    note_ids = ac.find_notes(build_search_query(deck=deck))
+    note_type_ids = {
+        model: ac.find_notes(build_search_query(deck=deck, note_type=model))
+        for model in ac.model_names()
+    }
+    note_types = sorted(model for model, ids in note_type_ids.items() if ids)
+    note_type_text = ", ".join(note_types) if note_types else "none"
     return (
         f"# Deck: {deck}\n\n{AUTO_START}\n\n"
-        f"- **Notes (including subdecks):** {note_count}\n\n{AUTO_END}"
+        f"- **Notes (including subdecks):** {len(note_ids)}\n"
+        f"- **Note types used:** {note_type_text}\n\n{AUTO_END}"
     )
 
 

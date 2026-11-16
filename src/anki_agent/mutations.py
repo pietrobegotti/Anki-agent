@@ -8,10 +8,12 @@ from dataclasses import asdict, dataclass
 from typing import Mapping
 
 from .ankiconnect import AnkiConnect
+from .config import AgentConfig
 from .duplicates import DuplicateChecker, DuplicateMatch
 from .preview import NoteChangePreview, NotePreview, PreviewService
 from .reader import NoteReader, NoteRecord
 from .history import MutationHistory
+from .storage import LocalStorage
 
 
 class MutationError(Exception):
@@ -76,6 +78,7 @@ class CollectionChangePreview:
     operation: str
     values: tuple[str, ...]
     destination_deck: str | None = None
+    source_decks: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -128,7 +131,8 @@ class NoteMutationService:
         self.previews = previews or PreviewService(anki)
         self.duplicates = duplicates or DuplicateChecker(anki)
         self.reader = NoteReader(anki)
-        self.history = history
+        self._uses_default_history = history is None
+        self.history = history or MutationHistory(LocalStorage(AgentConfig.from_env().storage_root))
         self._pending: dict[str, _PendingOperation] = {}
         self._batches: dict[str, BatchProposal] = {}
         self._batch_status: dict[str, str] = {}
@@ -184,7 +188,7 @@ class NoteMutationService:
 
     def propose_delete(self, note_id: int) -> OperationProposal:
         note = self._read_one(note_id)
-        preview = CollectionChangePreview(note, "delete", ())
+        preview = CollectionChangePreview(note, "delete", (), source_decks=self._note_decks(note))
         return self._register("delete", {"note_id": note_id, "tags": [], "deck": None}, preview)
 
     def _propose_collection_change(
@@ -199,7 +203,9 @@ class NoteMutationService:
         normalized_tags = tuple(dict.fromkeys(tag.strip() for tag in tags if tag.strip()))
         if operation in {"add_tags", "remove_tags"} and not normalized_tags:
             raise ValueError("Provide at least one tag")
-        preview = CollectionChangePreview(note, operation, normalized_tags, deck)
+        preview = CollectionChangePreview(
+            note, operation, normalized_tags, deck, self._note_decks(note)
+        )
         payload = {"note_id": note_id, "tags": list(normalized_tags), "deck": deck}
         return self._register(operation, payload, preview)
 
@@ -208,6 +214,19 @@ class NoteMutationService:
         if not notes:
             raise ValueError(f"Note {note_id} was not found")
         return notes[0]
+
+    def _note_decks(self, note: NoteRecord) -> tuple[str, ...]:
+        """Return the current deck for each card, when supported by the client."""
+        if not note.card_ids:
+            return ()
+        cards_info = getattr(self.anki, "cards_info", None)
+        if cards_info is None:
+            return ()
+        return tuple(sorted({
+            str(card["deckName"])
+            for card in cards_info(list(note.card_ids))
+            if card.get("deckName")
+        }))
 
     def propose_batch(self, requests: list[AddNoteRequest | UpdateNoteRequest]) -> BatchProposal:
         if not requests:
@@ -399,6 +418,7 @@ class NoteMutationService:
                 pending.proposal.operation,
                 tuple(payload["tags"]),
                 payload["deck"],
+                self._note_decks(current_note),
             )
         current_fingerprint = _fingerprint(pending.proposal.operation, payload, current_preview)
         if current_fingerprint != pending.fingerprint:
