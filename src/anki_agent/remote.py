@@ -11,13 +11,19 @@ from .mutations import AddNoteRequest, DuplicateReviewRequired, NoteMutationServ
 from .reader import NoteReader
 from .config import AgentConfig
 from .history import MutationHistory
-from .storage import LocalStorage
+from .storage import LocalStorage, Storage
 
 
 class RemoteUserContext:
     """An authenticated user's isolated Anki and mutation services."""
 
-    def __init__(self, user_id: str, reader: NoteReader, mutations: NoteMutationService):
+    def __init__(
+        self,
+        user_id: str,
+        reader: NoteReader,
+        mutations: NoteMutationService,
+        documentation_storage: Storage | None = None,
+    ):
         if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", user_id):
             raise ValueError("User ID may contain only letters, numbers, _ and -")
         if reader.anki is not mutations.anki:
@@ -25,6 +31,7 @@ class RemoteUserContext:
         self.user_id = user_id
         self.reader = reader
         self.mutations = mutations
+        self.documentation_storage = documentation_storage or mutations.history.storage
         if mutations._uses_default_history:
             config = AgentConfig.from_env()
             mutations.history = MutationHistory(LocalStorage(config.data_dir / user_id))
@@ -49,6 +56,14 @@ class RemoteGateway:
         if any(existing.mutations.anki is context.mutations.anki for _, existing in self._users):
             raise ValueError("Each user must have an isolated Anki connection")
         for _, existing in self._users:
+            old_docs = existing.documentation_storage
+            new_docs = context.documentation_storage
+            if old_docs is new_docs:
+                raise ValueError("Each user must have isolated collection documentation")
+            old_docs_root = getattr(old_docs, "root", None)
+            new_docs_root = getattr(new_docs, "root", None)
+            if old_docs_root is not None and old_docs_root == new_docs_root:
+                raise ValueError("Each user must have isolated collection documentation")
             old_history = existing.mutations.history
             new_history = context.mutations.history
             if old_history is not None and new_history is not None:
@@ -74,6 +89,33 @@ class RemoteGateway:
             if method == "GET" and path == "/v1/collection":
                 anki = user.mutations.anki
                 return 200, {"decks": anki.deck_names(), "note_types": anki.model_names()}
+            if method == "GET" and path == "/v1/collection/docs":
+                storage = user.documentation_storage
+                paths = sorted({
+                    path
+                    for prefix in ("note_types/", "decks/", "preferences/")
+                    for path in storage.list(prefix)
+                })
+                return 200, {"documents": paths}
+            if method == "POST" and path == "/v1/collection/docs/read":
+                document_path = body["path"]
+                prefixes = ("note_types/", "decks/", "preferences/")
+                parts = document_path.split("/") if isinstance(document_path, str) else []
+                if (
+                    not isinstance(document_path, str)
+                    or "\\" in document_path
+                    or not document_path.endswith(".md")
+                    or len(parts) < 2
+                    or any(part in {"", ".", ".."} for part in parts)
+                    or not document_path.startswith(prefixes)
+                ):
+                    raise ValueError("path must identify a collection Markdown guide")
+                content = user.documentation_storage.read(document_path)
+                if content is None:
+                    return 404, {"error": "Collection document not found"}
+                if len(content) > 100_000:
+                    raise ValueError("Collection document exceeds the 100000-character read limit")
+                return 200, {"path": document_path, "content": content}
             if method == "POST" and path == "/v1/note-types/inspect":
                 note_type = body["note_type"]
                 anki = user.mutations.anki

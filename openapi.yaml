@@ -34,6 +34,33 @@ paths:
         '200': {description: Note type field names and card templates}
         '400': {description: Unknown note type}
         '401': {description: Missing or invalid token}
+  /v1/collection/docs:
+    get:
+      operationId: listCollectionDocs
+      summary: List collection guides available to this user
+      responses:
+        '200': {description: Note type, deck, and preference guide paths}
+        '401': {description: Missing or invalid token}
+  /v1/collection/docs/read:
+    post:
+      operationId: readCollectionDoc
+      summary: Read one collection Markdown guide
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [path]
+              properties:
+                path:
+                  type: string
+                  description: A path returned by listCollectionDocs.
+      responses:
+        '200': {description: Guide path and Markdown content}
+        '400': {description: Path is outside collection guide folders}
+        '401': {description: Missing or invalid token}
+        '404': {description: Guide not found}
   /v1/notes/search:
     post:
       operationId: searchNotes

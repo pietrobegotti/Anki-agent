@@ -34,6 +34,16 @@ def create_mcp_server(gateway: RemoteGateway) -> MCPServer:
         return dispatch(ctx, "POST", "/v1/note-types/inspect", {"note_type": note_type})
 
     @server.tool()
+    def list_collection_docs(ctx: Context) -> dict[str, Any]:
+        """List available note type, deck, and agent preference guides."""
+        return dispatch(ctx, "GET", "/v1/collection/docs")
+
+    @server.tool()
+    def read_collection_doc(ctx: Context, path: str) -> dict[str, Any]:
+        """Read one collection guide returned by list_collection_docs."""
+        return dispatch(ctx, "POST", "/v1/collection/docs/read", {"path": path})
+
+    @server.tool()
     def search_notes(
         ctx: Context,
         text: str | None = None,
