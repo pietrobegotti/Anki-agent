@@ -33,10 +33,13 @@ class MutationOutcomeUnknown(MutationError):
 
 
 class DuplicateReviewRequired(MutationError):
-    def __init__(self, preview: NotePreview, matches: list[DuplicateMatch]):
+    def __init__(
+        self, preview: NotePreview, matches: list[DuplicateMatch], *, request_index: int | None = None
+    ):
         super().__init__("Possible duplicates were found; review them before proposing a new note")
         self.preview = preview
         self.matches = tuple(matches)
+        self.request_index = request_index
 
 
 @dataclass(frozen=True)
@@ -58,6 +61,8 @@ class AddNoteRequest:
     note_type: str
     fields: Mapping[str, str]
     tags: tuple[str, ...] = ()
+    allow_possible_duplicates: bool = False
+    semantic_candidate_ids: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -233,14 +238,20 @@ class NoteMutationService:
             raise ValueError("A batch must contain at least one operation")
         proposals: list[OperationProposal] = []
         try:
-            for request in requests:
+            for index, request in enumerate(requests):
                 if isinstance(request, AddNoteRequest):
-                    proposal = self.propose_add(
-                        deck=request.deck,
-                        note_type=request.note_type,
-                        fields=request.fields,
-                        tags=request.tags,
-                    )
+                    try:
+                        proposal = self.propose_add(
+                            deck=request.deck,
+                            note_type=request.note_type,
+                            fields=request.fields,
+                            tags=request.tags,
+                            allow_possible_duplicates=request.allow_possible_duplicates,
+                            semantic_candidate_ids=request.semantic_candidate_ids,
+                        )
+                    except DuplicateReviewRequired as exc:
+                        exc.request_index = index
+                        raise
                 elif isinstance(request, UpdateNoteRequest):
                     proposal = self.propose_update(request.note_id, request.fields)
                 else:

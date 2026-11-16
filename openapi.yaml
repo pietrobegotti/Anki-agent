@@ -57,6 +57,83 @@ paths:
       responses:
         '201': {description: Preview and proposal ID}
         '409': {description: Possible duplicates require review}
+  /v1/proposals/add-batch:
+    post:
+      operationId: proposeAddBatch
+      summary: Preview a batch of note additions without writing to Anki
+      description: >-
+        Submit 1 to 50 notes collected from the conversation. If a possible
+        duplicate is returned, review it with the user before resubmitting that
+        note with allow_possible_duplicates set to true.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [notes]
+              properties:
+                notes:
+                  type: array
+                  minItems: 1
+                  maxItems: 50
+                  items:
+                    type: object
+                    required: [deck, note_type, fields]
+                    properties:
+                      deck: {type: string}
+                      note_type: {type: string}
+                      fields: {type: object, additionalProperties: {type: string}}
+                      tags: {type: array, items: {type: string}}
+                      allow_possible_duplicates:
+                        type: boolean
+                        default: false
+                        description: Set true only after reviewing duplicate matches with the user.
+      responses:
+        '201': {description: Batch ID and individual note previews with proposal IDs}
+        '400': {description: Invalid batch or note data}
+        '401': {description: Missing or invalid token}
+        '409': {description: Possible duplicate; response includes request_index, preview, and matches}
+  /v1/batches/{batch_id}/confirm:
+    post:
+      operationId: confirmAddBatch
+      summary: Apply individually approved notes from a prepared batch
+      description: Omitted decisions and decisions other than approve are treated as rejection.
+      parameters:
+        - in: path
+          name: batch_id
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                decisions:
+                  type: object
+                  additionalProperties:
+                    type: string
+                    enum: [approve, reject]
+                  description: Map each returned proposal_id to approve or reject.
+      responses:
+        '200': {description: Per-note applied, rejected, or failed results}
+        '401': {description: Missing or invalid token}
+        '409': {description: Batch is unknown, stale, or already processed}
+  /v1/batches/{batch_id}/cancel:
+    post:
+      operationId: cancelAddBatch
+      summary: Cancel a pending batch without writing to Anki
+      parameters:
+        - in: path
+          name: batch_id
+          required: true
+          schema: {type: string}
+      responses:
+        '200': {description: Batch cancelled}
+        '401': {description: Missing or invalid token}
+        '409': {description: Batch is unknown or no longer pending}
   /v1/proposals/update:
     post:
       operationId: proposeUpdateNote

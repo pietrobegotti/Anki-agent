@@ -7,7 +7,7 @@ import re
 from dataclasses import asdict
 from typing import Any, Callable
 
-from .mutations import DuplicateReviewRequired, NoteMutationService
+from .mutations import AddNoteRequest, DuplicateReviewRequired, NoteMutationService
 from .reader import NoteReader
 from .config import AgentConfig
 from .history import MutationHistory
@@ -89,6 +89,32 @@ class RemoteGateway:
                 )
                 return 201, {"proposal_id": proposal.proposal_id, "operation": proposal.operation,
                              "preview": asdict(proposal.preview)}
+            if method == "POST" and path == "/v1/proposals/add-batch":
+                notes = body["notes"]
+                if not isinstance(notes, list):
+                    raise ValueError("notes must be an array")
+                if not 1 <= len(notes) <= 50:
+                    raise ValueError("A batch must contain between 1 and 50 notes")
+                requests = [
+                    AddNoteRequest(
+                        deck=item["deck"],
+                        note_type=item["note_type"],
+                        fields=item["fields"],
+                        tags=item.get("tags", []),
+                        allow_possible_duplicates=item.get("allow_possible_duplicates", False),
+                    )
+                    for item in notes
+                ]
+                batch = user.mutations.propose_batch(requests)
+                return 201, {
+                    "batch_id": batch.batch_id,
+                    "proposals": [
+                        {"proposal_id": proposal.proposal_id,
+                         "operation": proposal.operation,
+                         "preview": asdict(proposal.preview)}
+                        for proposal in batch.proposals
+                    ],
+                }
             if method == "POST" and path == "/v1/proposals/update":
                 proposal = user.mutations.propose_update(body["note_id"], body["fields"])
                 return 201, {"proposal_id": proposal.proposal_id, "operation": proposal.operation,
@@ -107,6 +133,17 @@ class RemoteGateway:
                 proposal = getattr(user.mutations, method_name)(body["note_id"], body["tags"])
                 return 201, {"proposal_id": proposal.proposal_id, "operation": proposal.operation,
                              "preview": asdict(proposal.preview)}
+            if method == "POST" and path.startswith("/v1/batches/") and path.endswith("/confirm"):
+                batch_id = path.removeprefix("/v1/batches/").removesuffix("/confirm").strip("/")
+                decisions = body.get("decisions", {})
+                if not isinstance(decisions, dict):
+                    raise ValueError("decisions must be an object keyed by proposal ID")
+                result = user.mutations.confirm_batch(batch_id, decisions)
+                return 200, asdict(result)
+            if method == "POST" and path.startswith("/v1/batches/") and path.endswith("/cancel"):
+                batch_id = path.removeprefix("/v1/batches/").removesuffix("/cancel").strip("/")
+                user.mutations.cancel_batch(batch_id)
+                return 200, {"batch_id": batch_id, "status": "cancelled"}
             if method == "POST" and path.startswith("/v1/proposals/") and path.endswith("/confirm"):
                 proposal_id = path.removeprefix("/v1/proposals/").removesuffix("/confirm").strip("/")
                 result = user.mutations.confirm(
@@ -117,7 +154,7 @@ class RemoteGateway:
                 return 200, asdict(result)
             return 404, {"error": "Not found"}
         except DuplicateReviewRequired as exc:
-            return 409, {
+            response = {
                 "error": str(exc),
                 "preview": asdict(exc.preview),
                 "matches": [
@@ -126,6 +163,9 @@ class RemoteGateway:
                     for match in exc.matches
                 ],
             }
+            if exc.request_index is not None:
+                response["request_index"] = exc.request_index
+            return 409, response
         except (KeyError, TypeError, ValueError) as exc:
             return 400, {"error": str(exc)}
         except Exception as exc:
