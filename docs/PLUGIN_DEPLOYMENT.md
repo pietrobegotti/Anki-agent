@@ -4,7 +4,43 @@ This guide describes how to connect the plugin package to a running Anki Agent
 MCP server. The repository supplies the server and package builder; it does not
 create hosting, a public hostname, HTTPS, or an account-side plugin connection.
 
-## Network layout when the main PC is off
+## Preferred design for a powered-off PC: Drive queue
+
+The project is moving toward a temporary Google Drive queue so the user's PC
+does not need to be online during the ChatGPT conversation:
+
+```text
+ChatGPT plugin -- Google OAuth --> private Drive queue (one JSON file per card)
+                                      |
+                                      | local polling when PC is on
+                                      v
+                           Windows worker -> AnkiConnect -> Anki Desktop
+                                                           | sync
+                                                           v
+                                                         AnkiWeb -> phone
+```
+
+ChatGPT will prepare and preview the cards, then write approved cards to a
+private Drive folder. When the PC and Anki are available, a local worker will
+read each pending card, recheck the deck, note type, and duplicates, import it,
+and ask AnkiConnect to sync. The PC may be off while cards wait in Drive. If a
+duplicate or stale schema is found when the worker wakes, that card is paused
+for review rather than imported automatically.
+
+The intended Drive access is OAuth with the `drive.file` scope, which is limited
+to files created or explicitly opened/shared with the app ([Google scope guide](https://developers.google.com/workspace/drive/api/guides/api-specific-auth)).
+The PC worker can poll Drive's change feed while running; push notifications
+would require a public HTTPS webhook ([Drive change guide](https://developers.google.com/workspace/drive/api/guides/manage-changes)).
+Neither the Drive OAuth integration nor the local queue worker is implemented
+yet.
+
+## Existing MCP prototype (requires an always-on Anki host)
+
+The rest of this guide documents the earlier MCP deployment prototype. It
+connects to a remote MCP endpoint and requires Anki Desktop to be open on that
+host. It is not the planned no-always-on-host workflow above.
+
+### Network layout
 
 AnkiWeb does not provide a documented public API for third-party note writes.
 The supported route is to use a second, always-on Anki client as the bridge:
@@ -26,7 +62,7 @@ The user's everyday PC can be off. The dedicated host, Anki Desktop, AnkiConnect
 and the MCP server must remain on and connected. The phone synchronizes with
 AnkiWeb independently after the desktop host syncs the changes.
 
-## Configure the always-on host
+### Configure the always-on host
 
 1. Choose a host that can keep Anki Desktop open in a logged-in desktop
    session. A dedicated always-on mini PC is the simplest setup; a remote VM
@@ -54,7 +90,7 @@ The launcher configures one user context and one bearer token. A multi-user
 service needs a deployment entry point that registers a separate Anki
 connection, storage root, and token for every user.
 
-## Build the plugin archive
+### Build the MCP plugin archive
 
 Once the HTTPS endpoint is ready, build the plugin archive from the repository
 root:
@@ -70,7 +106,7 @@ bearer API-key authentication for the MCP server, and checks that the archive
 contains the manifest, skill, and MCP configuration. The actual endpoint is
 required; do not install a package containing a placeholder URL.
 
-## Save and connect the plugin
+### Save and connect the MCP plugin
 
 1. Upload the generated ZIP through the Plugin Creator workflow to save a
    private plugin in the account or active workspace.
@@ -91,7 +127,7 @@ write must be an explicitly approved proposal whose result is checked in Anki.
 To see the new cards on a phone, sync the phone with the same AnkiWeb account
 after the desktop sync completes.
 
-## Operational requirements
+### Operational requirements for the MCP prototype
 
 - Keep the dedicated Anki host on while remote access is needed; the everyday
   PC may be off.

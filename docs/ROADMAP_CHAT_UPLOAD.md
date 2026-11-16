@@ -48,25 +48,42 @@ Il repository contiene già componenti riutilizzabili:
 
 La sequenza di branch `codex/chat-upload-*` ha aggiunto l'API batch, il server
 MCP Streamable HTTP, le istruzioni per raccogliere le bozze dalla conversazione,
-gli strumenti per consultare tipi di nota e guide, il generatore del pacchetto e
-la sincronizzazione AnkiWeb dopo una batch approvata.
+gli strumenti per consultare tipi di nota e guide, il generatore dell'archivio
+plugin e la sincronizzazione AnkiWeb dopo una batch approvata.
 
 ### Architettura scelta e limiti
 
 AnkiWeb sincronizza i client Anki ma non fornisce un'API pubblica supportata per
-aggiungere note direttamente da un plugin esterno. Il servizio usa quindi
-AnkiConnect su un host sempre acceso con Anki Desktop. Dopo l'approvazione, il
-servizio aggiunge le note alla collezione locale e richiede ad AnkiConnect di
-sincronizzarla con AnkiWeb. Il PC abituale può essere spento; l'host Anki dedicato
-deve restare acceso. Non si automatizzano endpoint privati di AnkiWeb.
+aggiungere note direttamente da un plugin esterno. La direzione preferita diventa
+quindi una coda temporanea su Google Drive:
+
+1. ChatGPT mostra l'anteprima e, dopo l'approvazione, scrive un file JSON per
+   carta in una cartella privata di coda su Drive.
+2. Un piccolo worker sul PC dell'utente controlla la coda quando il PC è acceso.
+   Quando Anki Desktop e AnkiConnect sono disponibili, verifica di nuovo mazzo,
+   tipo di nota e duplicati, poi importa le carte approvate.
+3. Il worker chiede ad AnkiConnect di sincronizzare la collezione con AnkiWeb.
+   Il telefono riceve le carte con la normale sincronizzazione AnkiDroid.
+
+Il PC può restare spento mentre ChatGPT accoda le carte; l'importazione avviene
+quando il PC torna disponibile. Se ChatGPT è usato dal PC mentre il worker e
+Anki sono aperti, lo stesso flusso può importare le carte quasi subito. Non si
+automatizzano endpoint privati di AnkiWeb.
+
+I file devono avere un ID stabile, un ID batch, lo stato, il mazzo, il tipo di
+nota e i campi. Il worker aggiorna lo stato in modo idempotente, mette in pausa
+le carte con duplicati o errori e rimuove/archivia i file completati secondo una
+scadenza configurata. L'accesso a Drive va limitato ai file dell'app tramite
+OAuth `drive.file`; il worker locale e il plugin devono condividere una
+configurazione OAuth valida per lo stesso utente.
 
 ### Lavoro rimanente
 
-La repository non include hosting HTTPS, configurazione tunnel/dominio,
-installazione del plugin nell'account ChatGPT, né un test end-to-end sulla
-collezione reale. La prima configurazione di un host nuovo deve scaricare la
-collezione già sincronizzata su AnkiWeb, dopo aver fatto un backup. Lo storage
-Google Drive rimane una decisione separata.
+La coda Drive e il worker Windows non sono ancora implementati. Restano da
+realizzare OAuth Drive, la gestione dei file temporanei, il worker locale,
+l'installazione del plugin/worker e una verifica end-to-end su una collezione di
+prova. Il precedente server MCP con host sempre acceso resta una strada
+alternativa, ma non è necessario per il flusso a coda scelto.
 
 ## Progetti di implementazione
 

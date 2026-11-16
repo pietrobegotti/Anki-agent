@@ -134,6 +134,12 @@ everyday PC is off, run Anki Desktop, AnkiConnect, and the MCP service together
 on a separate always-on host connected to the same AnkiWeb account. See
 [PLUGIN_DEPLOYMENT.md](docs/PLUGIN_DEPLOYMENT.md).
 
+The preferred design is now a temporary Drive queue: ChatGPT writes approved
+card JSON files to Drive, and a local worker imports them with AnkiConnect when
+the PC is available. This queue and worker are not implemented yet; see the
+updated [upload roadmap](docs/ROADMAP_CHAT_UPLOAD.md) and
+[queue schema](docs/DRIVE_QUEUE_SCHEMA.md).
+
 The `AUTO` sections in generated files are refreshed on every run. The
 "Manual notes" section is preserved.
 
