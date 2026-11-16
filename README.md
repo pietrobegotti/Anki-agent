@@ -128,7 +128,11 @@ After a batch confirmation applies at least one note, the MCP workflow asks
 AnkiConnect to run its `sync` action so the local collection is synchronized
 with AnkiWeb. The response reports whether that sync completed. Anki Desktop
 must be running, and the phone still needs to sync with AnkiWeb to receive the
-cards.
+cards. AnkiWeb is reached through the supported Anki Desktop sync flow; the
+plugin does not call private AnkiWeb endpoints. To use the plugin while your
+everyday PC is off, run Anki Desktop, AnkiConnect, and the MCP service together
+on a separate always-on host connected to the same AnkiWeb account. See
+[PLUGIN_DEPLOYMENT.md](docs/PLUGIN_DEPLOYMENT.md).
 
 The `AUTO` sections in generated files are refreshed on every run. The
 "Manual notes" section is preserved.

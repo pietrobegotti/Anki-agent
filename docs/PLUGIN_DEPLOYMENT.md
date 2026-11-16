@@ -4,35 +4,49 @@ This guide describes how to connect the plugin package to a running Anki Agent
 MCP server. The repository supplies the server and package builder; it does not
 create hosting, a public hostname, HTTPS, or an account-side plugin connection.
 
-## Network layout
+## Network layout when the main PC is off
 
-The computer running Anki Desktop must also run the Anki Agent MCP server. The
-server talks to AnkiConnect over loopback. A public HTTPS reverse proxy or
-secure tunnel forwards only the MCP route to the local server. Do not expose
+AnkiWeb does not provide a documented public API for third-party note writes.
+The supported route is to use a second, always-on Anki client as the bridge:
+Anki Desktop and AnkiConnect run on a dedicated host, and the MCP server runs
+there too. AnkiConnect stays on loopback. A public HTTPS reverse proxy or secure
+tunnel forwards only the MCP route to the local server. Do not expose
 AnkiConnect's port `8765` to the internet.
 
 ```text
 ChatGPT plugin -- HTTPS + bearer token --> public tunnel / reverse proxy
-                                          --> Anki Agent MCP :8000/mcp
+                                          --> always-on host: Anki Agent MCP
                                           --> AnkiConnect 127.0.0.1:8765
-                                          --> Anki Desktop collection
+                                          --> Anki Desktop <--> AnkiWeb
+                                                               ^
+                                             phone -- sync -----+
 ```
 
-The Anki computer needs to remain on and connected while the plugin is in use.
-If the user wants access while that computer is off, Anki must instead run on
-an always-on host with the collection available there.
+The user's everyday PC can be off. The dedicated host, Anki Desktop, AnkiConnect,
+and the MCP server must remain on and connected. The phone synchronizes with
+AnkiWeb independently after the desktop host syncs the changes.
 
-## Configure the Anki computer
+## Configure the always-on host
 
-1. Install the project with `uv sync --locked` and confirm that Anki Desktop and
-   AnkiConnect work locally.
-2. Set `ANKI_CONNECT_URL` to `http://127.0.0.1:8765` (the default) and set
+1. Choose a host that can keep Anki Desktop open in a logged-in desktop
+   session. A dedicated always-on mini PC is the simplest setup; a remote VM
+   needs a supported graphical session and must be evaluated before use.
+2. Install Anki Desktop and AnkiConnect on that host. Back up the current
+   collection before connecting the host to the same AnkiWeb account.
+3. Treat this as a new Anki device. If its local collection is empty and the
+   existing collection is on AnkiWeb, choose **Download from AnkiWeb** on the
+   initial sync. Do not select Upload, which would make the host's empty
+   collection replace the one in AnkiWeb. The [Anki sync manual](https://docs.ankiweb.net/syncing.html)
+   describes the initial upload/download choice.
+4. Install the project with `uv sync --locked` and confirm that AnkiConnect
+   works on loopback at `http://127.0.0.1:8765`.
+5. Set `ANKI_CONNECT_URL` to `http://127.0.0.1:8765` (the default) and set
    `ANKI_AGENT_USER_ID` and `ANKI_AGENT_DATA_DIR` if needed.
-3. Generate a random bearer token of at least 32 characters and store it in a
+6. Generate a random bearer token of at least 32 characters and store it in a
    secret manager or process environment as `ANKI_AGENT_BEARER_TOKEN`. Do not
    commit it or put it in the plugin archive.
-4. Start `uv run anki-agent-mcp --host 127.0.0.1 --port 8000`.
-5. Configure a reverse proxy or tunnel with a stable hostname and a valid HTTPS
+7. Start `uv run anki-agent-mcp --host 127.0.0.1 --port 8000`.
+8. Configure a reverse proxy or tunnel with a stable hostname and a valid HTTPS
    certificate. Forward `/mcp` to `http://127.0.0.1:8000/mcp`, preserve the
    `Authorization` header, and do not publish port `8765`.
 
@@ -79,7 +93,8 @@ after the desktop sync completes.
 
 ## Operational requirements
 
-- Keep the Anki computer on while remote access is needed.
+- Keep the dedicated Anki host on while remote access is needed; the everyday
+  PC may be off.
 - Keep the bearer token secret and rotate it if it is exposed.
 - Back up the Anki collection and the agent data directory.
 - If the server restarts while a preview is awaiting approval, create a fresh
