@@ -1,0 +1,23 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "anki-agent",
+  "version": "0.1.0",
+  "description": "Prepare, review, and safely upload Anki notes discussed in ChatGPT conversations.",
+  "author": {
+    "name": "Anki Agent"
+  },
+  "keywords": ["Anki", "flashcards", "learning", "notes"],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Anki Agent",
+        "shortDescription": "Turn chat into Anki cards",
+        "longDescription": "Collects card drafts from the current conversation, prepares Anki previews, checks possible duplicates, and uploads only the notes you approve.",
+        "developerName": "Anki Agent",
+        "category": "Education & Research",
+        "capabilities": ["Interactive"],
+        "defaultPrompt": "Turn cards from this conversation into an Anki upload preview."
+      }
+    }
+  }
+}
