@@ -143,18 +143,22 @@ never deletes Anki notes. See the [queue schema](docs/DRIVE_QUEUE_SCHEMA.md),
 [config template](docs/drive-config-template.md), and
 [writing instructions](docs/drive-instructions-template.md).
 
-The worker CLI currently requires a valid Google OAuth access token and the ID
-of the Drive parent folder:
+The local worker uses Google OAuth offline access; its refresh token is stored
+in the operating system credential store. Set up a Google OAuth Desktop client
+first (see [Drive authorization setup](docs/drive-auth-setup.md)), save its
+client JSON under the configured user data directory as
+`google-oauth-client.json`, then authorize once:
 
 ```powershell
-$env:ANKI_AGENT_DRIVE_PARENT_ID = "your-drive-parent-folder-id"
-$env:ANKI_AGENT_DRIVE_ACCESS_TOKEN = "your-google-oauth-access-token"
+uv run anki-agent drive-auth
 uv run anki-agent drive-import
-uv run anki-agent drive-cleanup # only after explicitly deciding to remove completed JSON
+uv run anki-agent drive-cleanup # explicit: deletes completed JSON from Drive only
 ```
 
-Access-token issuance and refresh-token storage are not included. Do not commit
-tokens to files. Run one worker PC to avoid concurrent imports.
+The queue is created under `My Drive/Anki Agent/` by default. To choose another
+parent, set `ANKI_AGENT_DRIVE_PARENT_ID` to a folder the app can access. Run one
+worker PC to avoid concurrent imports. ChatGPT's Google Drive connection is a
+separate authorization from this local worker.
 
 The `AUTO` sections in generated files are refreshed on every run. The
 "Manual notes" section is preserved.

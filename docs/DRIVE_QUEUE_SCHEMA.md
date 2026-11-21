@@ -68,7 +68,11 @@ failed, or review-needed cards are retained.
 
 English starter documents are `docs/drive-config-template.md` and
 `docs/drive-instructions-template.md`; `ensure_layout` seeds equivalent
-defaults. The Google Drive v3 adapter accepts an access-token callback, keeping
-OAuth secrets outside this package and the queue. The CLI currently expects a
-valid token in `ANKI_AGENT_DRIVE_ACCESS_TOKEN` and the selected parent ID in
-`ANKI_AGENT_DRIVE_PARENT_ID`. Token issuance/refresh management is not included.
+defaults. The Google Drive v3 adapter accepts an access-token callback. The
+local CLI uses installed-app OAuth with PKCE; refresh tokens are stored in the
+operating system credential store by `keyring`. Run `anki-agent drive-auth`
+once after placing the Desktop OAuth client JSON in the user data folder. The
+queue is created under `My Drive/Anki Agent/` unless
+`ANKI_AGENT_DRIVE_PARENT_ID` selects another accessible parent. ChatGPT's
+Google Drive authorization is separate. See
+[Drive authorization setup](drive-auth-setup.md).

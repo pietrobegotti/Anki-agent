@@ -10,6 +10,13 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import sqlite3
+import base64
+import hashlib
+import http.server
+import secrets
+import threading
+import time
+import webbrowser
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -19,6 +26,137 @@ from uuid import uuid4
 from .mutations import DuplicateReviewRequired, MutationOutcomeUnknown, NoteMutationService
 
 SCHEMA_VERSION = 1
+DRIVE_FILE_SCOPE = "https://www.googleapis.com/auth/drive.file"
+
+
+class GoogleOAuthTokenProvider:
+    """Installed-app OAuth with PKCE and a keyring-backed refresh token."""
+
+    KEYRING_SERVICE = "anki-agent-google-drive"
+    ACCOUNT_NAME = "default"
+    AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
+    TOKEN_URL = "https://oauth2.googleapis.com/token"
+
+    def __init__(self, client_file: Path, *, keyring_module=None, timeout: int = 20):
+        self.client_file = Path(client_file).expanduser()
+        self.timeout = timeout
+        if keyring_module is None:
+            try:
+                import keyring as keyring_module
+            except ImportError as exc:
+                raise RuntimeError("Install the keyring dependency to store Drive credentials securely") from exc
+        self.keyring = keyring_module
+        credentials = json.loads(self.client_file.read_text(encoding="utf-8"))
+        self.client = credentials.get("installed") or credentials.get("web")
+        if not self.client or not self.client.get("client_id"):
+            raise ValueError("Google OAuth client file must contain an installed or web client_id")
+        self.client_id = self.client["client_id"]
+        self.client_secret = self.client.get("client_secret")
+        self._access_token: str | None = None
+        self._expires_at = 0.0
+
+    def access_token(self) -> str:
+        if self._access_token and time.time() < self._expires_at - 60:
+            return self._access_token
+        refresh_token = self.keyring.get_password(self.KEYRING_SERVICE, self.ACCOUNT_NAME)
+        if not refresh_token:
+            raise RuntimeError("Google Drive is not authorized; run `anki-agent drive-auth` first")
+        data = self._token_request({
+            "client_id": self.client_id,
+            "refresh_token": refresh_token,
+            "grant_type": "refresh_token",
+            **({"client_secret": self.client_secret} if self.client_secret else {}),
+        })
+        self._remember(data)
+        return self._access_token or ""
+
+    def authorize(self) -> None:
+        """Open Google's consent page and save offline access in the OS keyring."""
+        state = secrets.token_urlsafe(24)
+        verifier = secrets.token_urlsafe(64)
+        challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
+        result: dict[str, str] = {}
+        ready = threading.Event()
+
+        class CallbackHandler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                from urllib.parse import parse_qs, urlsplit
+                params = parse_qs(urlsplit(self.path).query)
+                if params.get("state", [None])[0] != state:
+                    result["error"] = "OAuth state mismatch"
+                elif "error" in params:
+                    result["error"] = params["error"][0]
+                else:
+                    result["code"] = params.get("code", [""])[0]
+                self.send_response(200 if "code" in result else 400)
+                self.send_header("Content-Type", "text/plain; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(b"Anki Agent Drive authorization complete. You can close this tab.")
+                ready.set()
+
+            def log_message(self, _format, *args):
+                return
+
+        server = http.server.HTTPServer(("127.0.0.1", 0), CallbackHandler)
+        server.timeout = self.timeout
+        redirect_uri = f"http://127.0.0.1:{server.server_port}/"
+        query = urllib.parse.urlencode({
+            "client_id": self.client_id,
+            "redirect_uri": redirect_uri,
+            "response_type": "code",
+            "scope": DRIVE_FILE_SCOPE,
+            "access_type": "offline",
+            "prompt": "consent",
+            "state": state,
+            "code_challenge": challenge,
+            "code_challenge_method": "S256",
+        })
+        print("Opening Google authorization in your browser…")
+        webbrowser.open(self.AUTH_URL + "?" + query)
+        deadline = time.monotonic() + self.timeout * 6
+        try:
+            while not ready.is_set():
+                if time.monotonic() >= deadline:
+                    raise TimeoutError("Timed out waiting for the Google authorization callback")
+                server.handle_request()
+        finally:
+            server.server_close()
+        if "error" in result:
+            raise RuntimeError(f"Google authorization failed: {result['error']}")
+        token_data = self._token_request({
+            "client_id": self.client_id,
+            "code": result["code"],
+            "code_verifier": verifier,
+            "redirect_uri": redirect_uri,
+            "grant_type": "authorization_code",
+            **({"client_secret": self.client_secret} if self.client_secret else {}),
+        })
+        refresh_token = token_data.get("refresh_token")
+        if not refresh_token:
+            raise RuntimeError("Google did not return a refresh token; revoke the app and run drive-auth again")
+        self.keyring.set_password(self.KEYRING_SERVICE, self.ACCOUNT_NAME, refresh_token)
+        self._remember(token_data)
+
+    def _token_request(self, form: Mapping[str, str]) -> dict:
+        request = urllib.request.Request(
+            self.TOKEN_URL,
+            data=urllib.parse.urlencode(form).encode("ascii"),
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                return json.loads(response.read())
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            raise RuntimeError(f"Google OAuth returned HTTP {exc.code}: {detail}") from exc
+
+    def _remember(self, token_data: Mapping[str, object]) -> None:
+        token = token_data.get("access_token")
+        if not isinstance(token, str) or not token:
+            raise RuntimeError("Google OAuth response did not contain an access token")
+        self._access_token = token
+        self._expires_at = time.time() + int(token_data.get("expires_in", 3600))
 
 
 @dataclass(frozen=True)
