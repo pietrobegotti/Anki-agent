@@ -1,90 +1,74 @@
 # Drive queue for chat-created Anki notes
 
-## Purpose
+## Layout
 
-Keep approved card requests while the user's PC is offline. ChatGPT writes one
-small JSON file per approved note to a private Drive folder. A local worker
-processes the files when Anki Desktop and AnkiConnect are available.
+The whole queue lives beneath a Drive parent folder selected by the user:
 
-The JSON files are queue instructions, not Anki database files. The worker uses
-AnkiConnect to add notes to the selected collection and then asks Anki Desktop
-to sync with AnkiWeb.
+```text
+<selected parent>/Anki Agent/
+  config.md
+  instructions.md
+  queue/
+  completed/  (reserved)
+```
 
-## Card file
+`GoogleDriveProvider.ensure_layout(parent_id)` creates/finds this nested
+structure and seeds the two English guide documents if they are missing. It
+never overwrites existing guides.
 
-Suggested path: `Anki Agent/queue/<card_id>.json`.
+## Request files
+
+ChatGPT writes one immutable JSON file per save request. A request can contain
+multiple cards; every card and request has a stable UUID. Retries must reuse the
+same IDs.
 
 ```json
 {
   "schema_version": 1,
-  "card_id": "opaque-random-id",
-  "batch_id": "opaque-random-batch-id",
+  "request_id": "opaque-random-request-id",
   "created_at": "2026-11-17T08:30:00Z",
-  "expires_at": "2026-12-17T08:30:00Z",
-  "status": "pending",
   "approved": true,
-  "deck": "Japanese::Vocabulary",
-  "note_type": "Basic",
-  "fields": {
-    "Front": "食べる",
-    "Back": "to eat"
-  },
-  "tags": ["chatgpt"]
+  "cards": [{
+    "card_id": "opaque-random-card-id",
+    "deck": "Japanese::Vocabulary",
+    "note_type": "Basic",
+    "fields": {"Front": "食べる", "Back": "to eat"},
+    "tags": ["chatgpt"]
+  }]
 }
 ```
 
-Files are created only after the user has reviewed and approved the chat
-preview. Store the card content and minimum processing metadata only; never
-store the full conversation, AnkiWeb password, or OAuth refresh token in the
-queue file.
+Files are created only after the user reviewed and approved the card content.
+Never store conversation transcripts, AnkiWeb passwords, or OAuth refresh
+tokens in the queue file.
 
-## State lifecycle
+## Import and idempotency
 
-- `pending`: waiting for the local worker.
-- `processing`: claimed by one worker instance with a lease expiry.
-- `applied`: added to Anki; includes the note ID and sync result.
-- `needs_review`: duplicate found, the destination changed, or the saved schema
-  no longer matches; do not add automatically.
-- `failed`: invalid data or a non-retryable Anki error; include a safe error
-  summary and leave the file available for review.
-- expired pending files are not imported; mark them `expired` and leave a short
-  status for the next chat to report.
+The `anki-agent drive-import` command reads JSON from `queue/`, validates the
+approval marker, and proposes each card through `NoteMutationService` so current
+decks, note types, fields, and duplicate checks are applied. It writes only
+through that service's explicit approval path. A local SQLite receipt keyed by
+`card_id` is saved before the write. Applied IDs are skipped on later runs;
+`applying` and uncertain outcomes are paused for reconciliation, never retried
+blindly. Duplicate matches are marked `needs_review`. After additions, the
+worker asks Anki Desktop to sync with AnkiWeb.
 
-The worker keeps a local SQLite receipt keyed by `card_id` before acknowledging
-`applied` in Drive. If Drive acknowledgment fails after Anki accepted a write,
-the receipt prevents a later poll from creating the same note again. Worker
-leases and receipts also prevent two PCs from processing the same queue item.
+Run one worker PC. Multi-PC revision claims are not implemented. A status
+update in Drive can fail after a successful Anki write; the local receipt still
+prevents the same card ID from being added again on this PC.
 
-## PC worker behavior
+## Explicit cleanup
 
-1. Poll only the dedicated queue folder while the PC is on. Use the Drive
-   Changes API rather than scanning all Drive files on every interval.
-2. Claim a `pending` file using its Drive revision / ETag to avoid overwriting a
-   concurrent worker's state.
-3. Verify the approval marker, expiry, destination deck, note type, known
-   fields, and current collection schema.
-4. Recheck duplicates against the current Anki collection. Pause ambiguous
-   matches as `needs_review` rather than deciding on the user's behalf.
-5. Add the note through `NoteMutationService`; after a successful write, record
-   the local receipt and ask AnkiConnect to sync with AnkiWeb.
-6. Update the file with the note ID and sync result. Retain completed files for
-   a configurable short period, then delete or archive them.
+Completed JSON requests stay in Drive until the user explicitly runs
+`anki-agent drive-cleanup`. Cleanup deletes fully imported JSON files from
+Drive only. It does not delete or change notes in Anki. Requests with pending,
+failed, or review-needed cards are retained.
 
-The worker publishes a compact snapshot of decks, note types, templates, and
-collection guides to a separate Drive folder whenever it is online. ChatGPT
-uses that snapshot to build accurate cards and previews while Anki is
-unreachable. The worker always revalidates against the live collection before
-writing.
+## Guides and authentication
 
-## Authentication and privacy
-
-Use separate OAuth sessions for the ChatGPT plugin and the PC worker, both
-authorized for the same user's Drive and the same dedicated folder. Request the
-least access supported by the chosen Google integration; the target is
-`drive.file`, which is restricted to files the app creates or the user
-explicitly opens/shares with it. Keep refresh tokens in each host's secret
-storage and never in the queue JSON or repository.
-
-The Drive integration, OAuth configuration, queue service, Windows worker, and
-downloadable status reporting are implementation work; the current repository
-does not yet process these files.
+English starter documents are `docs/drive-config-template.md` and
+`docs/drive-instructions-template.md`; `ensure_layout` seeds equivalent
+defaults. The Google Drive v3 adapter accepts an access-token callback, keeping
+OAuth secrets outside this package and the queue. The CLI currently expects a
+valid token in `ANKI_AGENT_DRIVE_ACCESS_TOKEN` and the selected parent ID in
+`ANKI_AGENT_DRIVE_PARENT_ID`. Token issuance/refresh management is not included.

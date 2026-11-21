@@ -134,11 +134,27 @@ everyday PC is off, run Anki Desktop, AnkiConnect, and the MCP service together
 on a separate always-on host connected to the same AnkiWeb account. See
 [PLUGIN_DEPLOYMENT.md](docs/PLUGIN_DEPLOYMENT.md).
 
-The preferred design is now a temporary Drive queue: ChatGPT writes approved
-card JSON files to Drive, and a local worker imports them with AnkiConnect when
-the PC is available. This queue and worker are not implemented yet; see the
-updated [upload roadmap](docs/ROADMAP_CHAT_UPLOAD.md) and
-[queue schema](docs/DRIVE_QUEUE_SCHEMA.md).
+The preferred design is a temporary Drive queue: ChatGPT writes an approved
+JSON request under `Anki Agent/queue/`, and a local worker imports its cards
+with AnkiConnect when the PC is available. Each request can contain multiple
+cards and has stable IDs to prevent duplicate imports. Completed JSON files
+stay in Drive until explicitly cleaned up; cleanup only removes Drive files and
+never deletes Anki notes. See the [queue schema](docs/DRIVE_QUEUE_SCHEMA.md),
+[config template](docs/drive-config-template.md), and
+[writing instructions](docs/drive-instructions-template.md).
+
+The worker CLI currently requires a valid Google OAuth access token and the ID
+of the Drive parent folder:
+
+```powershell
+$env:ANKI_AGENT_DRIVE_PARENT_ID = "your-drive-parent-folder-id"
+$env:ANKI_AGENT_DRIVE_ACCESS_TOKEN = "your-google-oauth-access-token"
+uv run anki-agent drive-import
+uv run anki-agent drive-cleanup # only after explicitly deciding to remove completed JSON
+```
+
+Access-token issuance and refresh-token storage are not included. Do not commit
+tokens to files. Run one worker PC to avoid concurrent imports.
 
 The `AUTO` sections in generated files are refreshed on every run. The
 "Manual notes" section is preserved.
@@ -179,6 +195,7 @@ src/anki_agent/
   history.py       append-only mutation audit and recovery status
   remote.py        authenticated tenant-isolated WSGI API
   mcp_server.py    MCP Streamable HTTP adapter for remote chat tools
+  drive_queue.py   Google Drive queue adapter, request schema, and local worker
   storage.py       Storage interface and LocalStorage implementation
   docs_gen.py      note type and deck documentation generation
 test_run.py        smoke test
