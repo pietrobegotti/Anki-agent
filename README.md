@@ -134,31 +134,24 @@ everyday PC is off, run Anki Desktop, AnkiConnect, and the MCP service together
 on a separate always-on host connected to the same AnkiWeb account. See
 [PLUGIN_DEPLOYMENT.md](docs/PLUGIN_DEPLOYMENT.md).
 
-The preferred design is a temporary Drive queue: ChatGPT writes an approved
-JSON request under `Anki Agent/queue/`, and a local worker imports its cards
-with AnkiConnect when the PC is available. Each request can contain multiple
-cards and has stable IDs to prevent duplicate imports. Completed JSON files
-stay in Drive until explicitly cleaned up; cleanup only removes Drive files and
-never deletes Anki notes. See the [queue schema](docs/DRIVE_QUEUE_SCHEMA.md),
-[config template](docs/drive-config-template.md), and
-[writing instructions](docs/drive-instructions-template.md).
-
-The local worker uses Google OAuth offline access; its refresh token is stored
-in the operating system credential store. Set up a Google OAuth Desktop client
-first (see [Drive authorization setup](docs/drive-auth-setup.md)), save its
-client JSON under the configured user data directory as
-`google-oauth-client.json`, then authorize once:
+The local card workflow is organized into `anki_config/`, `scripts/`, and
+`cards/`. Put the project folder inside the Google Drive for desktop synced
+location. Claude reads `anki_config/generation_instructions.md` and the live
+collection inventory in `anki_config/collection_config.md`, then saves one
+approved JSON request per file directly in `cards/`. On the PC, Anki Desktop
+and AnkiConnect must be running before importing:
 
 ```powershell
-uv run anki-agent drive-auth
-uv run anki-agent drive-import
-uv run anki-agent drive-cleanup # explicit: deletes completed JSON from Drive only
+uv run python scripts/export_anki_config.py
+uv run python scripts/import_cards.py
+uv run python scripts/cleanup_imported_cards.py # only when you explicitly want to remove completed JSON
 ```
 
-The queue is created under `My Drive/Anki Agent/` by default. To choose another
-parent, set `ANKI_AGENT_DRIVE_PARENT_ID` to a folder the app can access. Run one
-worker PC to avoid concurrent imports. ChatGPT's Google Drive connection is a
-separate authorization from this local worker.
+The importer reads and updates JSON files locally; Google Drive for desktop
+syncs those changes. It skips card IDs already recorded in a local SQLite
+receipt database, pauses uncertain write outcomes, and checks possible content
+duplicates. Cleanup deletes only fully imported JSON files. It never deletes
+Anki notes. See the [queue workflow](docs/DRIVE_QUEUE_SCHEMA.md).
 
 The `AUTO` sections in generated files are refreshed on every run. The
 "Manual notes" section is preserved.
@@ -199,9 +192,13 @@ src/anki_agent/
   history.py       append-only mutation audit and recovery status
   remote.py        authenticated tenant-isolated WSGI API
   mcp_server.py    MCP Streamable HTTP adapter for remote chat tools
-  drive_queue.py   Google Drive queue adapter, request schema, and local worker
+  local_cards.py   JSON request schema, local queue reader, and Anki importer
+  collection_config.py exports deck and note-type fields for the LLM
   storage.py       Storage interface and LocalStorage implementation
   docs_gen.py      note type and deck documentation generation
+anki_config/       collection schema and card-generation instructions
+scripts/           local config export, import, and explicit JSON cleanup
+cards/             Drive-synchronized JSON request queue
 test_run.py        smoke test
 test_agent.py      automated tests using simulated Anki responses
 ROADMAP.md         project roadmap
@@ -215,5 +212,5 @@ manifest.md        project requirements
 - [x] Preview and approval before every note operation
 - [x] Duplicate review and individually approved batches
 - [x] Approved tag changes, deck moves, and confirmed note deletions
-- [ ] `GoogleDriveStorage` with the same interface as `Storage`
+- [x] Local Drive-for-desktop synchronized JSON queue and import worker
 - [x] Secured remote API and ChatGPT Action contract

@@ -42,6 +42,11 @@ class AgentConfig:
     def storage_root(self) -> Path:
         return self.data_dir / self.user_id
 
+    @property
+    def local_state_root(self) -> Path:
+        """Private per-user state kept outside the Drive-synchronized project."""
+        return Path.home() / ".anki-agent" / self.user_id
+
     def create_anki(self) -> AnkiConnect:
         return AnkiConnect(self.anki_url, api_key=self.anki_api_key, timeout=self.anki_timeout)
 

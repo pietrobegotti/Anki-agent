@@ -1,5 +1,7 @@
 # Generated personal collection documentation (private data)
 collection_docs/
+/anki_config/collection_config.md
+/cards/*.json
 
 # Python
 __pycache__/
