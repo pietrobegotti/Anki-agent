@@ -4,8 +4,8 @@
 
 The workflow has two parts with a Drive-synchronized local folder as the handoff:
 
-1. Claude reads `anki_config/collection_config.md` and
-   `anki_config/generation_instructions.md`. After the user explicitly approves
+1. Claude reads `info/anki_config/collection_config.md` and
+   `info/anki_config/generation_instructions.md`. After the user explicitly approves
    the cards, it creates one JSON request file per save request in `cards/`.
 2. A local Python script reads those JSON files from the Drive for desktop
    folder, validates the collection destination and duplicates, then adds cards
@@ -17,7 +17,7 @@ location. No Google API access token is used by the worker.
 
 ## Implemented in this branch
 
-- `anki_config/` contains card-generation guidance and the collection schema
+- `info/anki_config/` contains card-generation guidance and the collection schema
   exporter output path.
 - `scripts/export_anki_config.py` refreshes exact live deck, note type, field,
   and template names when Anki is available.

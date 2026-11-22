@@ -1,6 +1,6 @@
 # Card queue
 
-Place approved JSON request files directly in this folder. Google Drive for
+Place approved JSON request files directly in `cards/`. Google Drive for
 desktop synchronizes this folder; the local importer reads each `*.json` file
 and writes processing status back to that file.
 

@@ -1,4 +1,4 @@
-"""Export current deck, note type, and field names to anki_config/."""
+"""Export current deck, note type, and field names to info/anki_config/."""
 from __future__ import annotations
 
 import sys

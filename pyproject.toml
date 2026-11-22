@@ -15,4 +15,4 @@ anki-agent = "anki_agent.cli:main"
 anki-agent-mcp = "anki_agent.mcp_server:main"
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["scripts"]

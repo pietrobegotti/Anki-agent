@@ -24,7 +24,7 @@ environment; the program does not load `.env` files:
 $env:ANKI_CONNECT_URL = "http://127.0.0.1:8765"
 $env:ANKI_CONNECT_API_KEY = "your-local-anki-connect-key"
 $env:ANKI_CONNECT_TIMEOUT = "15"
-$env:ANKI_AGENT_DATA_DIR = ".\collection_docs"
+$env:ANKI_AGENT_DATA_DIR = ".\info\collection_docs"
 $env:ANKI_AGENT_USER_ID = "default"
 ```
 
@@ -39,7 +39,7 @@ uv run anki-agent smoke
 ```
 
 The command prints the AnkiConnect version, decks, and note types, then generates
-documentation in `collection_docs/<user ID>/`. Note type documents include field usage,
+documentation in `info/collection_docs/<user ID>/`. Note type documents include field usage,
 front/back templates, CSS, and generated Cloze cards. This folder is ignored by
 Git because it contains data from your personal collection. The script also
 creates convention and preference guides if they do not exist; it preserves
@@ -96,7 +96,7 @@ characters. Each context must use its own `AnkiConnect`, `NoteReader`,
 `NoteMutationService`, and storage root. The gateway rejects duplicate user IDs,
 shared mutation services, and non-HTTPS WSGI requests.
 
-Use [openapi.yaml](openapi.yaml) as the starting contract for a ChatGPT Action.
+Use [openapi.yaml](info/openapi.yaml) as the starting contract for a ChatGPT Action.
 Replace its server URL with the deployed HTTPS endpoint, configure bearer-token
 authentication, and keep the token in the connector's secret settings. Host the
 WSGI application behind a production WSGI server and HTTPS reverse proxy; keep
@@ -132,12 +132,12 @@ cards. AnkiWeb is reached through the supported Anki Desktop sync flow; the
 plugin does not call private AnkiWeb endpoints. To use the plugin while your
 everyday PC is off, run Anki Desktop, AnkiConnect, and the MCP service together
 on a separate always-on host connected to the same AnkiWeb account. See
-[PLUGIN_DEPLOYMENT.md](docs/PLUGIN_DEPLOYMENT.md).
+[PLUGIN_DEPLOYMENT.md](info/docs/PLUGIN_DEPLOYMENT.md).
 
-The local card workflow is organized into `anki_config/`, `scripts/`, and
-`cards/`. Put the project folder inside the Google Drive for desktop synced
-location. Claude reads `anki_config/generation_instructions.md` and the live
-collection inventory in `anki_config/collection_config.md`, then saves one
+The local card workflow is organized into `cards/`, `scripts/`, and `info/`.
+Put the project folder inside the Google Drive for desktop synced
+location. Claude reads `info/anki_config/generation_instructions.md` and the live
+collection inventory in `info/anki_config/collection_config.md`, then saves one
 approved JSON request per file directly in `cards/`. On the PC, Anki Desktop
 and AnkiConnect must be running before importing:
 
@@ -151,7 +151,7 @@ The importer reads and updates JSON files locally; Google Drive for desktop
 syncs those changes. It skips card IDs already recorded in a local SQLite
 receipt database, pauses uncertain write outcomes, and checks possible content
 duplicates. Cleanup deletes only fully imported JSON files. It never deletes
-Anki notes. See the [queue workflow](docs/DRIVE_QUEUE_SCHEMA.md).
+Anki notes. See the [queue workflow](info/docs/DRIVE_QUEUE_SCHEMA.md).
 
 The `AUTO` sections in generated files are refreshed on every run. The
 "Manual notes" section is preserved.
@@ -159,7 +159,7 @@ The `AUTO` sections in generated files are refreshed on every run. The
 Run the local documentation tests with:
 
 ```powershell
-uv run python test_agent.py
+uv run python scripts/tests/test_agent.py
 ```
 
 ## Troubleshooting
@@ -176,12 +176,12 @@ uv run python test_agent.py
 A clean-install check is `uv sync --locked` followed by the offline test
 command. The smoke command requires Anki Desktop and AnkiConnect. Remote
 deployment additionally requires a production WSGI server, HTTPS ingress, and
-a ChatGPT Action configured from `openapi.yaml`.
+a ChatGPT Action configured from `info/openapi.yaml`.
 
 ## Project structure
 
 ```
-src/anki_agent/
+scripts/anki_agent/
   config.py        environment-based connection and per-user storage settings
   cli.py           local smoke-test command line
   ankiconnect.py   minimal AnkiConnect client (standard library only)
@@ -196,14 +196,14 @@ src/anki_agent/
   collection_config.py exports deck and note-type fields for the LLM
   storage.py       Storage interface and LocalStorage implementation
   docs_gen.py      note type and deck documentation generation
-anki_config/       collection schema and card-generation instructions
+info/              reading, configuration, generated collection docs, API contract, and project guides
 scripts/           local config export, import, and explicit JSON cleanup
 cards/             Drive-synchronized JSON request queue
-test_run.py        smoke test
-test_agent.py      automated tests using simulated Anki responses
-ROADMAP.md         project roadmap
-openapi.yaml       ChatGPT Action / remote connector API contract
-manifest.md        project requirements
+scripts/tests/test_run.py  smoke test
+scripts/tests/test_agent.py automated tests using simulated Anki responses
+info/ROADMAP.md    project roadmap
+info/openapi.yaml  ChatGPT Action / remote connector API contract
+info/manifest.md   project requirements
 ```
 
 ## Roadmap

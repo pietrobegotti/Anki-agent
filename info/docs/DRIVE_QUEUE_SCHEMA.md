@@ -3,7 +3,7 @@
 ## Project folders
 
 ```text
-anki_config/
+info/anki_config/
   collection_config.md           generated from the live Anki collection
   generation_instructions.md     instructions for Claude or another LLM
 scripts/
