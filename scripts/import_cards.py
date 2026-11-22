@@ -1,4 +1,4 @@
-"""Import approved request JSON files from the synchronized cards folder."""
+"""Import legacy approved-request JSON files (not the LLM card format in info/CARDS.md)."""
 from __future__ import annotations
 
 import sys

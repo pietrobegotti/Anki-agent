@@ -19,9 +19,13 @@ def main(argv: list[str] | None = None) -> int:
     subparsers.add_parser("smoke", help="check AnkiConnect and generate local collection docs")
     export = subparsers.add_parser("export-config", help="write the live Anki decks and fields to info/anki_config")
     export.add_argument("--output", type=Path, default=PROJECT_ROOT / "info" / "anki_config" / "collection_config.md")
-    importer = subparsers.add_parser("import-cards", help="import approved JSON requests from cards/")
+    importer = subparsers.add_parser(
+        "import-cards", help="import legacy approved-request JSON (not info/CARDS.md files)"
+    )
     importer.add_argument("--cards-dir", type=Path, default=PROJECT_ROOT / "cards")
-    cleanup = subparsers.add_parser("cleanup-cards", help="delete fully imported JSON requests from cards/")
+    cleanup = subparsers.add_parser(
+        "cleanup-cards", help="delete completed legacy import requests from cards/"
+    )
     cleanup.add_argument("--cards-dir", type=Path, default=PROJECT_ROOT / "cards")
     args = parser.parse_args(argv)
     if args.command == "smoke":

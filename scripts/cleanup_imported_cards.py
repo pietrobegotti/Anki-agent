@@ -1,4 +1,4 @@
-"""Explicitly remove fully imported request JSON files from cards/."""
+"""Remove completed legacy import requests; does not clean LLM card files."""
 from __future__ import annotations
 
 import sys

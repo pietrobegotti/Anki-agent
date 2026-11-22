@@ -134,24 +134,16 @@ everyday PC is off, run Anki Desktop, AnkiConnect, and the MCP service together
 on a separate always-on host connected to the same AnkiWeb account. See
 [remote setup](info/REMOTE.md).
 
-The local card workflow is organized into `cards/`, `scripts/`, and `info/`.
-Put the project folder inside the Google Drive for desktop synced
-location. Claude reads `info/CARDS.md` and the live collection inventory in
-`info/anki_config/collection_config.md`, then saves one
-approved JSON request per file directly in `cards/`. On the PC, Anki Desktop
-and AnkiConnect must be running before importing:
+The local card-file workflow uses `cards/` and `info/`. When the user asks for
+the meaning of one or more words, the LLM prepares readable card previews from
+`info/CARDS.md` and `info/Takoboto.enriched.json`, then asks for confirmation.
+Only after confirmation does it save one JSON card per word directly in
+`cards/`. This flow requires no script to prepare or save card files.
 
-```powershell
-uv run python scripts/export_anki_config.py
-uv run python scripts/import_cards.py
-uv run python scripts/cleanup_imported_cards.py # only when you explicitly want to remove completed JSON
-```
-
-The importer reads and updates JSON files locally; Google Drive for desktop
-syncs those changes. It skips card IDs already recorded in a local SQLite
-receipt database, pauses uncertain write outcomes, and checks possible content
-duplicates. Cleanup deletes only fully imported JSON files. It never deletes
-Anki notes. The [card workflow](info/CARDS.md) has the request format and steps.
+The separate local queue importer still expects its legacy approved-request
+schema, including a request wrapper, deck, and note type. It does not consume
+the card files described by `info/CARDS.md`; those files are not automatically
+imported into Anki by this workflow.
 
 The `AUTO` sections in generated files are refreshed on every run. The
 "Manual notes" section is preserved.
@@ -197,8 +189,8 @@ scripts/anki_agent/
   storage.py       Storage interface and LocalStorage implementation
   docs_gen.py      note type and deck documentation generation
 info/              card workflow, remote setup, and API contract
-scripts/           local config export, import, and explicit JSON cleanup
-cards/             Drive-synchronized JSON request queue
+scripts/           application setup and separate legacy queue utilities
+cards/             Drive-synchronized LLM-created JSON cards
 scripts/tests/test_run.py  smoke test
 scripts/tests/test_agent.py automated tests using simulated Anki responses
 info/openapi.yaml  ChatGPT Action / remote connector API contract

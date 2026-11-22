@@ -1,6 +1,7 @@
 # Instructions for the LLM
 
-- Create one card for each word the user requests. Save each card as a JSON file directly in `cards/`.
+- When the user asks for the meaning of one or more words, prepare one complete card per word as a readable response. Show all field values and examples, then ask the user to confirm.
+- Do not write card files before confirmation. After confirmation, save each approved card as its own JSON file directly in `cards/`, using the exact content shown to the user.
 - Use the JSON template below. Do not add, remove, or rename fields. The square-bracketed text is instructional placeholder text: replace it with real values and never copy the brackets into a card.
 - Name each file `<id>_<word>.json`, using the Japanese word in the filename. Use a six-digit progressive ID: start at `000001` if `cards/` has no card files; otherwise use the next ID. Never reuse an ID or overwrite a file. The IDs in the examples below are illustrative and do not count as files in `cards/`.
 - Write only valid JSON to the file. Do not include Markdown fences or prose in the JSON file. Do not ask the user to run a script.

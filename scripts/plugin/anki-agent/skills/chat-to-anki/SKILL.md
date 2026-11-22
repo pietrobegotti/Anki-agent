@@ -5,6 +5,12 @@ description: Use when the user wants to collect, prepare, review, or upload Anki
 
 # Turn this conversation into Anki cards
 
+This skill is the separate remote, direct-to-Anki workflow. Use it only when
+the user asks to propose or add notes through the connected MCP tools. If the
+user asks for JSON files in the local `cards/` folder, follow `info/CARDS.md`;
+this remote skill cannot write to that local folder and must not substitute a
+direct Anki write.
+
 ## Keep drafts separate from Anki
 
 - Treat discussion as source material, not permission to write to the collection.

@@ -1,4 +1,8 @@
-"""JSON card queue schema and a local import worker."""
+"""Legacy approved-request queue schema and local importer.
+
+This importer uses the old request wrapper with deck and note_type fields. It
+does not consume the LLM card-file format documented in info/CARDS.md.
+"""
 from __future__ import annotations
 
 import json
