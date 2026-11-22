@@ -137,8 +137,10 @@ on a separate always-on host connected to the same AnkiWeb account. See
 The local card-file workflow uses `cards/` and `info/`. When the user asks for
 the meaning of one or more words, the LLM prepares readable card previews from
 `info/CARDS.md` and `info/Takoboto.enriched.json`, then asks for confirmation.
-Only after confirmation does it save one JSON card per word directly in
-`cards/`. This flow requires no script to prepare or save card files.
+If the user has not specified a deck, the LLM asks whether to use `ダイワ` or
+`なでもかんでも`. Only after confirmation does it save one JSON card per word
+directly in `cards/`, using `cards/next_id.txt` to track progressive IDs. This
+flow requires no script to prepare or save card files.
 
 The separate local queue importer still expects its legacy approved-request
 schema, including a request wrapper, deck, and note type. It does not consume

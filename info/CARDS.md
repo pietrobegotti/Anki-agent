@@ -1,24 +1,27 @@
 # Instructions for the LLM
 
 - When the user asks for the meaning of one or more words, prepare one complete card per word as a readable response. Show all field values and examples, then ask the user to confirm.
-- Do not write card files before confirmation. After confirmation, save each approved card as its own JSON file directly in `cards/`, using the exact content shown to the user.
-- Use the JSON template below. Do not add, remove, or rename fields. The square-bracketed text is instructional placeholder text: replace it with real values and never copy the brackets into a card.
-- Name each file `<id>_<word>.json`, using the Japanese word in the filename. Use a six-digit progressive ID: start at `000001` if `cards/` has no card files; otherwise use the next ID. Never reuse an ID or overwrite a file. The IDs in the examples below are illustrative and do not count as files in `cards/`.
-- Write only valid JSON to the file. Do not include Markdown fences or prose in the JSON file. Do not ask the user to run a script.
+- Do not write card files before explicit user approval. After confirmation, save each approved card as its own JSON file directly in `cards/`, using exactly the content shown to the user.
+- Use the JSON template below. Do not add, remove, or rename fields. Text in square brackets is instructional placeholder text: replace it with real values; never copy the brackets into a card.
+- Read the next six-digit ID from `cards/next_id.txt`. Use it in both the JSON `id` and filename `<id>_<word>.json`. After each saved card, increment the counter by one. Do not increment it for a draft or rejected card, and never overwrite a file.
+- Ask which deck to use if the user has not specified one. Current decks: `ダイワ` and `なでもかんでも`. If the user leaves the deck blank or explicitly accepts the fallback, use `unknown`.
+- Write only valid JSON to each file. Do not include Markdown fences or prose in the JSON file. Do not ask the user to run a script.
+- Compatibility with other scripts or importers is not required; it is outside the scope of this document. Do not change this card format to match them.
 
 ## JSON template
 
 ```json
 {
-  "id": "[six-digit progressive ID]",
+  "id": "[six-digit ID from cards/next_id.txt]",
   "word": "[Japanese word]",
   "furigana": "[reading of the whole word]",
   "translation": "[Italian translation, or the language requested by the user]",
   "meaning": "[very concise note about nuance, usage, or connotation; not a definition]",
+  "deck": "[ダイワ, なでもかんでも, or unknown]",
   "compound": "[for a long compound: subword：Italian translation\nsubword：Italian translation; otherwise empty]",
   "synonyms": "[zero to three synonyms; empty for compounds]",
   "antonyms": "[zero to three antonyms; empty for compounds]",
-  "kanji": "[kanji]\t[Takoboto reading]\t[Takoboto translation]\n[kanji]\t[Takoboto reading]\t[Takoboto translation]",
+  "kanji": "[kanji]\t[reading]\t[translation]\n[kanji]\t[reading]\t[translation]",
   "example": "[Japanese sentence or phrase] — [Italian translation]\n[Japanese sentence or phrase] — [Italian translation]\n[Japanese sentence or phrase] — [Italian translation]"
 }
 ```
@@ -26,13 +29,16 @@
 ## Field rules
 
 - `meaning`: describe the word's nuance or use in a very concise note. Do not give a dictionary definition or repeat the translation. For `処置`, for example: `Si usa quando si prende una misura concreta per affrontare un problema o una situazione, spesso in ambito medico o pratico.`
-- `compound`: for a long compound, split it into meaningful subwords and give each subword's Italian translation on its own line, in the format `subword：translation`. Example: `伝統：tradizione\n工芸：arti e mestieri artigianali`. Leave this field empty when the word is not a long compound.
+- `deck`: ask the user to choose `ダイワ` or `なでもかんでも` unless they already specified a deck. If they leave it blank or accept the fallback, write `unknown`.
+- `compound`: for a long compound, split it into meaningful subwords and give each subword's Italian translation on its own line, in the format `subword：translation`. Example: `伝統：tradizione\n工芸：arti e mestieri artigianali`. Leave it empty when the word is not a long compound.
 - `synonyms` and `antonyms`: provide zero to three suitable words, separated by commas. Leave both fields empty for any compound, even when `compound` itself is empty. For a non-compound, leave a field empty if no suitable words are available.
-- `kanji`: read `info/Takoboto.enriched.json`. For each distinct kanji in `word`, find the list item keyed by that kanji and copy its `reading` and `translation` exactly. Keep the kanji in word order, one per line. Separate the kanji, reading, and translation with tabs (`\t`); separate kanji lines with newlines (`\n`). If a kanji is missing from Takoboto, ask the user before creating the card; do not invent its data.
-- `example`: include exactly three Japanese sentences or phrases using the word. Put the Italian translation on the same line, after ` — `.
-- `id`: use a six-digit string matching the filename and the next unused progressive ID.
+- `kanji`: read `info/Takoboto.enriched.json`. For each distinct kanji in `word`, copy its `reading` and `translation` from the entry keyed by that kanji. Keep kanji in word order, one per line; separate kanji, reading, and translation with tabs (`\t`), and kanji lines with newlines (`\n`). If a kanji is missing from Takoboto, supply its reading and translation manually in the same format. If uncertain, ask the user rather than guessing.
+- `example`: include exactly three Japanese sentences or phrases using the word. Put the Italian translation on the same line after ` — `.
+- `id`: use the next six-digit value from `cards/next_id.txt` and match it in the filename. Increment the file after each confirmed card is saved.
 
 ## Examples
+
+The example IDs below illustrate the format; they do not change `cards/next_id.txt`.
 
 ### `000001_伝統工芸.json`
 
@@ -43,6 +49,7 @@
   "furigana": "でんとうこうげい",
   "translation": "artigianato tradizionale",
   "meaning": "Evoca saperi locali tramandati tra generazioni.",
+  "deck": "ダイワ",
   "compound": "伝統：tradizione\n工芸：arti e mestieri artigianali",
   "synonyms": "",
   "antonyms": "",
@@ -60,6 +67,7 @@
   "furigana": "しずか",
   "translation": "tranquillo; silenzioso; calmo",
   "meaning": "Trasmette una quiete composta e spesso piacevole, non solo assenza di rumore.",
+  "deck": "なでもかんでも",
   "compound": "",
   "synonyms": "穏やか (calmo), 物静か (tranquillo e riservato), 閑静 (quieto, riferito a un luogo)",
   "antonyms": "賑やか (animato), 騒がしい (rumoroso), うるさい (chiassoso)",
@@ -77,6 +85,7 @@
   "furigana": "ひ",
   "translation": "giorno",
   "meaning": "Da solo suona più quotidiano; nei composti cambiano spesso lettura e sfumatura.",
+  "deck": "unknown",
   "compound": "",
   "synonyms": "",
   "antonyms": "",
@@ -85,4 +94,4 @@
 }
 ```
 
-For `処置`, the user-provided nuance is: `Si usa quando si prende una misura concreta per affrontare un problema o una situazione, spesso in ambito medico o pratico.` The current Takoboto file has no entry for `処`; do not create a complete `処置` card until that kanji's data is available.
+For `処置`, the user-provided nuance is: `Si usa quando si prende una misura concreta per affrontare un problema o una situazione, spesso in ambito medico o pratico.` The current Takoboto file has no entry for `処`; fill its kanji row manually using the same tab-separated format.
