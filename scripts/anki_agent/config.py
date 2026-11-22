@@ -34,7 +34,7 @@ class AgentConfig:
         user_id = env.get("ANKI_AGENT_USER_ID", "default").strip()
         if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", user_id):
             raise ValueError("ANKI_AGENT_USER_ID may contain only letters, numbers, _ and -")
-        data_dir = Path(env.get("ANKI_AGENT_DATA_DIR", "./info/collection_docs")).expanduser().resolve()
+        data_dir = Path(env.get("ANKI_AGENT_DATA_DIR", "~/.anki-agent/collection_docs")).expanduser().resolve()
         api_key = env.get("ANKI_CONNECT_API_KEY", "").strip() or None
         return cls(url, api_key, timeout, data_dir, user_id)
 

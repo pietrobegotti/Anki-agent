@@ -1,5 +1,4 @@
-# Generated personal collection documentation (private data)
-/info/collection_docs/
+# Generated collection schema (private collection metadata)
 /info/anki_config/collection_config.md
 /cards/*.json
 
